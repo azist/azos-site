@@ -1,0 +1,337 @@
+﻿<!DOCTYPE html>
+<!--[if IE]><![endif]-->
+<html>
+  
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+    <title>Domain Data Validation </title>
+    <meta name="viewport" content="width=device-width">
+    <meta name="title" content="Domain Data Validation ">
+    <meta name="generator" content="docfx 2.40.6.0">
+    
+    <link rel="shortcut icon" href="../../../favicon.ico">
+    <link rel="stylesheet" href="../../../styles/docfx.vendor.css">
+    <link rel="stylesheet" href="../../../styles/docfx.css">
+    <link rel="stylesheet" href="../../../styles/main.css">
+    <meta property="docfx:navrel" content="../../../toc">
+    <meta property="docfx:tocrel" content="../../../toc">
+    
+    
+    
+  </head>
+  <body data-spy="scroll" data-target="#affix" data-offset="120">
+    <div id="wrapper">
+      <header>
+        
+        <nav id="autocollapse" class="navbar navbar-inverse ng-scope" role="navigation">
+          <div class="container">
+            <div class="navbar-header">
+              <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#navbar">
+                <span class="sr-only">Toggle navigation</span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+              </button>
+              
+              <a class="navbar-brand" href="../../../index.html">
+                <img id="logo" class="svg" src="../../../logo.svg" alt="">
+              </a>
+            </div>
+            <div class="collapse navbar-collapse" id="navbar">
+              <form class="navbar-form navbar-right" role="search" id="search">
+                <div class="form-group">
+                  <input type="text" class="form-control" id="search-query" placeholder="Search" autocomplete="off">
+                </div>
+              </form>
+                
+                <ul class="nav level1 navbar-nav">
+                      <li>
+                          <a href="../../documentation-index.html" name="" title="Azos">Azos</a>
+                      </li>
+                      <li>
+                          <a href="../../../out/api/Azos.html" name="" title="API Documentation">API Documentation</a>
+                      </li>
+                </ul>    </div>
+          </div>
+        </nav>
+        
+        <div class="subnav navbar navbar-default">
+          <div class="container hide-when-search" id="breadcrumb">
+            <ul class="breadcrumb">
+              <li></li>
+            </ul>
+          </div>
+        </div>
+      </header>
+      <div role="main" class="container body-content hide-when-search">
+        <div class="article row grid">
+          <div class="col-md-10">
+            <article class="content wrap" id="_content" data-uid="">
+<h1 id="domain-data-validation">Domain Data Validation</h1>
+
+<p>Back to <a href="/src/documentation-index.md">Documentation Index</a></p>
+<p>See also:</p>
+<ul>
+<li><a href="readme.html">Data Access Overview</a></li>
+<li><a href="metadata.html">Data Schema / Metadata</a></li>
+<li><a href="modeling.html">Data Modeling</a></li>
+</ul>
+<h2 id="overview">Overview</h2>
+<p>The described approach uses <a href="modeling.html"><strong>relational schema modeling</strong> </a> described <a href="modeling.cs">here</a>.
+Relational schema compiler understands <strong>user-defined data type definition objects</strong>, aka. <strong>&quot;domains&quot;</strong>.
+Domains inherit form base class <a href="Modeling/DataTypes/RDBMSDomain.cs"><code>RDBMSDomain</code></a> and dictate the
+limits applied and how DDL gets generated.</p>
+<h2 id="example">Example</h2>
+<p>Example domain describing an enumerated type:</p>
+<pre><code class="lang-CSharp">  public abstract class MyEnum : RDBMSDomain
+  {
+    public DBCharType Type;
+
+    public int Size;
+
+    public string[] Values;
+
+    protected MyiEnum(DBCharType type, string values)
+    {
+      Type = type;
+      var vlist = values.Split('|');
+      Size = vlist.Max(v =&gt; v.Trim().Length);
+      if (Size &lt; 1) Size = 1;
+      Values = vlist;
+    }
+
+    public override string GetTypeName(RDBMSCompiler compiler)
+    {
+      return Type == DBCharType.Varchar ? 
+         &quot;VARCHAR({0})&quot;.Args(Size) :
+         &quot;CHAR({0})&quot;.Args(Size);
+    }
+
+    public override string GetColumnCheckScript(RDBMSCompiler compiler,
+                                                RDBMSEntity column, 
+                                                Compiler.Outputs outputs)
+    {
+      var enumLine = string.Join(&quot;, &quot;, Values.Select(v =&gt; compiler.EscapeString(v.Trim())));
+      return compiler.TransformKeywordCase(&quot;check ({0} in ({1}))&quot;)
+                  .Args(
+                        compiler.GetQuotedIdentifierName(RDBMSEntityType.Column, 
+                                                         column.TransformedName),
+                        enumLine
+                       );
+    }
+  }
+
+//... inherit different enum-like types from MyEnum ...
+
+  public class MyCommentType : MyEnum
+  {
+    public const int MAX_LEN = 8;
+
+    public const string GENERAL = &quot;GEN&quot;;
+    public const string REVIEW = &quot;REV&quot;;
+    public const string QNA = &quot;QNA&quot;;
+
+    public const string VALUE_LIST = &quot;GEN: General, REV: Review, QNA: Q&amp;A&quot;;
+
+    public static string MapDescription(string value)
+    {
+      if (value.EqualsOrdIgnoreCase(GENERAL)) return &quot;General&quot;;
+      if (value.EqualsOrdIgnoreCase(REVIEW)) return &quot;Review&quot;;
+      if (value.EqualsOrdIgnoreCase(QNA)) return &quot;Q&amp;A&quot;;
+      return &quot;Unknown&quot;;
+    }
+
+    public MyiCommentDimension() : base(DBCharType.Char, &quot;GEN|REV|QNA&quot;)
+    {
+    }
+  }
+</code></pre>
+<p>We have gathered all data consistency rules for the domain (data type) in one place.
+Now all places in code and the database use the same source of master definition. For example,
+this is how a field is declared in the data doc now:</p>
+<pre><code class="lang-CSharp">  // Value list is taken right from the DOMAIN definition
+  [Field(valueList: Domains.MyCommentType.VALUE_LIST)]
+  public string CommentType { get; set;}
+</code></pre>
+<p>We can now use this domain directly in the RSC scripts like so:</p>
+<pre><code>  table=Comment
+  {
+    comment=&quot;Holds user comments&quot;
+    ...
+    column=CommentType { type=MyCommentType required=true  comment=&quot;Comment type&quot; }
+  ......
+</code></pre>
+<h2 id="compiler-configuration-and-scripting">Compiler Configuration and Scripting</h2>
+<p>To enable this behavior we need to supply <code>rsc</code> compiler with the assembly declaring
+the custom domain definitions so custom domain types can be discovered at compiler runtime:</p>
+<pre><code class="lang-batch">  set DOMAINS=&quot;MyApp.Data.Domains.*, MyApp; Azos.Data.Modeling.DataTypes.*, Azos&quot;
+  rsc my-customer.rschema /o out-name-prefix=&quot;cust.&quot; domain-search-paths=%DOMAINS%
+  rsc my-vendor.rschema /o out-name-prefix=&quot;vnd.&quot; domain-search-paths=%DOMAINS%
+</code></pre>
+<p>You can use the following template script for complex Mdb model setup:</p>
+<pre><code class="lang-batch">@echo off
+
+SET PROJECT_HOME=%YOUR_PROJECT_NAME_HOME%
+SET LAST=%PROJECT_HOME:~-1%
+IF %LAST% NEQ \ (SET PROJECT_HOME=%PROJECT_HOME%\)
+
+set MYAPP_HOME=%PROJECT_HOME%MYAPP\
+set AZOS_HOME=%PROJECT_HOME%AZOS\
+set RSC_EXE=&quot;%MYAPP_HOME%out\Debug\run-netf\rsc.exe&quot;
+set DOMAINS=&quot;MyApp.Data.Domains.*, MyApp; Azos.Sky.Social.Graph.Server.Data.Schema.*, Azos.Sky.Social; Azos.Data.Model.DataTypes.*, Azos&quot;
+
+echo Building CENTRAL Scripts ---------------------------------------------------
+%RSC_EXE% &quot;%MYAPP_HOME%src\db\Mdb\my-central-00-all.rschema&quot; /o out-name-prefix=my.central. domain-search-paths=%DOMAINS%
+if errorlevel 1 goto ERROR
+
+echo Building USER Scripts ------------------------------------------------------
+%RSC_EXE% &quot;%MYAPP_HOME%src\db\Mdb\my-user-00-all.rschema&quot;    /o out-name-prefix=my.user. domain-search-paths=%DOMAINS%
+if errorlevel 1 goto ERROR
+
+echo Done!
+goto :FINISH
+
+:ERROR
+echo Error happened!
+:FINISH
+pause
+</code></pre>
+<h2 id="domains-and-rdbms-domains">Domains and RDBMS Domains</h2>
+<p><a href="Modeling/DataTypes/RDBMSDomain.cs"><code>RDBMSDomain</code></a> inherits from <a href="Modeling/DataTypes/Domain.cs"><code>Domain</code></a> as it provides additional rdbms-specific overrides:</p>
+<pre><code class="lang-CSharp">//
+// Summary:
+//     Represents a domain - named type with optional constraints/checks for permitted
+//     values
+public abstract class RDBMSDomain : Domain
+{
+  protected RDBMSDomain();
+
+  //
+  // Summary:
+  //     Returns script for auto-generated values, may also emit compiler-specific object
+  //     like sequence or generator
+  public virtual string GetColumnAutoGeneratedScript(RDBMSCompiler compiler,
+                                                     RDBMSEntity column, 
+                                                     Compiler.Outputs outputs);
+  //
+  // Summary:
+  //     Returns script for check constraint on column level
+  public virtual string GetColumnCheckScript(RDBMSCompiler compiler,
+                                             RDBMSEntity column,
+                                             Compiler.Outputs outputs);
+  //
+  // Summary:
+  //     Returns script for default values, may also emit compiler-specific object like
+  //     sequence or generator or insert rows in some other table
+  public virtual string GetColumnDefaultScript(RDBMSCompiler compiler,
+                                               RDBMSEntity column,
+                                               Compiler.Outputs outputs);
+  //
+  // Summary:
+  //     Returns true to indicate that column of this type is always required
+  //
+  // Parameters:
+  //   compiler:
+  //     The context that the result depends on
+  public virtual bool? GetColumnRequirement(RDBMSCompiler compiler);
+  //
+  // Summary:
+  //     Returns the name of the resulting type that this domain maps to
+  //
+  // Parameters:
+  //   compiler:
+  //     The context that the result depends on
+  //
+  // Returns:
+  //     Target type name, i.e. BIGINT, DECIMAL(8,2) etc...
+  public abstract string GetTypeName(RDBMSCompiler compiler);
+  //
+  // Summary:
+  //     Changes column name, i.e. adds prefix
+  public virtual void TransformColumnName(RDBMSCompiler compiler, RDBMSEntity column);
+}
+</code></pre>
+<p>What this implies is that domains may determine what code gets generated and how it gets emitted, for example,
+we can create a domain for required foreign key, the requirement is going to be automatic, so you would not even need
+to decorate the domain in RSC files with <code>required=true</code></p>
+<h2 id="db-version-upgrade">DB Version Upgrade</h2>
+<p>The RSC compile generates DDL which can be used to create new copies of databases.
+What happens when schema changes? What can change:</p>
+<ul>
+<li>Column added/dropped/renamed</li>
+<li>Column data types changed</li>
+<li>Primary key changed</li>
+<li>Secondary key changed</li>
+<li>Referential integrity constraints added/removed</li>
+</ul>
+<p>Here are a few questions that come to mind before ALTERING db schemas containing data:</p>
+<ul>
+<li>How much data is already in affected tables?</li>
+<li>Can the requested changes be made in-place or will it create temp table effectively re-writing all data (e.g. when pk/clustering changes)?</li>
+<li>Is there enough free disk/tablespace?</li>
+<li>Does the change affect foreign keys? Should FK constraints be disabled?</li>
+<li>Does the database contain data non-compliant per the new domains?</li>
+<li>What happens to user connections while schema alteration takes place?</li>
+</ul>
+<p>While it is theoretically possible to generate auto-diff ALTER scripts with RSC this would
+have required the significant increase in an overall solution complexity and created in-adequate ALTER statements,
+therefore we took a different approach.</p>
+<ul>
+<li>rsc is used only for master script generation - as if the database is always brand new</li>
+<li>every time you need to change your schema -just change the Rschema scripts as if you are always working with a brand new database</li>
+<li>apply the new DDL on your dev environment nearby the existing one, using date/version is schema name</li>
+<li>compare older schema db instance with newer schema instance (just generated) - most tools will generate ALTER scripts automatically</li>
+<li>keep in mind that applying ALTER table may get dangerous on large datasets - <strong>always talk to your DBA</strong> (e.g. db may need to have a double free space for a temp table rewrite during ALTERation of clustered keys, addition of many columns etc.)</li>
+</ul>
+<p>Additional info:</p>
+<ul>
+<li><a href="https://dba.stackexchange.com/questions/182330/alter-large-table-without-downtime">Altering a Large MySQL Table without Downtime</a></li>
+<li><a href="https://sqlstudies.com/2016/07/14/altering-a-column-in-a-large-table-a-case-study/">Altering a Column in a Large Table</a></li>
+</ul>
+<p>See also:</p>
+<ul>
+<li><a href="readme.html">Data Access Overview</a></li>
+<li><a href="metadata.html">Data Schema / Metadata</a></li>
+<li><a href="modeling.html">Data Modeling</a></li>
+</ul>
+<p>Back to <a href="/src/documentation-index.md">Documentation Index</a></p>
+</article>
+          </div>
+          
+          <div class="hidden-sm col-md-2" role="complementary">
+            <div class="sideaffix">
+              <div class="contribution">
+                <ul class="nav">
+                  <li>
+                    <a href="https://github.com/azist/azos/blob/master/src/Azos/Data/domains.md/#L1" class="contribution-link">Improve this Doc</a>
+                  </li>
+                </ul>
+              </div>
+              <nav class="bs-docs-sidebar hidden-print hidden-xs hidden-sm affix" id="affix">
+              <!-- <p><a class="back-to-top" href="#top">Back to top</a><p> -->
+              </nav>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <footer>
+        <div class="grad-bottom"></div>
+        <div class="footer">
+          <div class="container">
+            <span class="pull-right">
+              <a href="#top">Back to top</a>
+            </span>
+            
+            <span>Generated by <strong>DocFX</strong></span>
+          </div>
+        </div>
+      </footer>
+    </div>
+    
+    <script type="text/javascript" src="../../../styles/docfx.vendor.js"></script>
+    <script type="text/javascript" src="../../../styles/docfx.js"></script>
+    <script type="text/javascript" src="../../../styles/main.js"></script>
+  </body>
+</html>

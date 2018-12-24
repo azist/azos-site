@@ -1,0 +1,267 @@
+﻿<!DOCTYPE html>
+<!--[if IE]><![endif]-->
+<html>
+  
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+    <title>Azos Sky Metabase </title>
+    <meta name="viewport" content="width=device-width">
+    <meta name="title" content="Azos Sky Metabase ">
+    <meta name="generator" content="docfx 2.40.6.0">
+    
+    <link rel="shortcut icon" href="../../../favicon.ico">
+    <link rel="stylesheet" href="../../../styles/docfx.vendor.css">
+    <link rel="stylesheet" href="../../../styles/docfx.css">
+    <link rel="stylesheet" href="../../../styles/main.css">
+    <meta property="docfx:navrel" content="../../../toc">
+    <meta property="docfx:tocrel" content="../../../toc">
+    
+    
+    
+  </head>
+  <body data-spy="scroll" data-target="#affix" data-offset="120">
+    <div id="wrapper">
+      <header>
+        
+        <nav id="autocollapse" class="navbar navbar-inverse ng-scope" role="navigation">
+          <div class="container">
+            <div class="navbar-header">
+              <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#navbar">
+                <span class="sr-only">Toggle navigation</span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+              </button>
+              
+              <a class="navbar-brand" href="../../../index.html">
+                <img id="logo" class="svg" src="../../../logo.svg" alt="">
+              </a>
+            </div>
+            <div class="collapse navbar-collapse" id="navbar">
+              <form class="navbar-form navbar-right" role="search" id="search">
+                <div class="form-group">
+                  <input type="text" class="form-control" id="search-query" placeholder="Search" autocomplete="off">
+                </div>
+              </form>
+                
+                <ul class="nav level1 navbar-nav">
+                      <li>
+                          <a href="../../documentation-index.html" name="" title="Azos">Azos</a>
+                      </li>
+                      <li>
+                          <a href="../../../out/api/Azos.html" name="" title="API Documentation">API Documentation</a>
+                      </li>
+                </ul>    </div>
+          </div>
+        </nav>
+        
+        <div class="subnav navbar navbar-default">
+          <div class="container hide-when-search" id="breadcrumb">
+            <ul class="breadcrumb">
+              <li></li>
+            </ul>
+          </div>
+        </div>
+      </header>
+      <div role="main" class="container body-content hide-when-search">
+        <div class="article row grid">
+          <div class="col-md-10">
+            <article class="content wrap" id="_content" data-uid="">
+<h1 id="azos-sky-metabase">Azos Sky Metabase</h1>
+
+<p>Sky OS makes an extensive use of metadata (data about data) to describe its’ instance.
+An instance is a distinct installation of Sky OS on a set of physical and/or virtual resources.
+One may operate an instance from many different data centers running various applications.
+The logical decision about the instance composition is dictated by a particular business solution.</p>
+<p>There are many various factors to consider and configure in a distributed system. Sky takes
+approach akin to reflection - a set of data about the system with APIs that can programmatically
+extract that data for various OS functions. This concept is called <strong>&quot;Metabase&quot;</strong> - a special kind of
+database that stores metadata about the Sky OS system.</p>
+<p>Metabase is a hierarchical data structure that gets mounted by every Sky OS process via a
+<strong>Virtual File System</strong> (VFS) accessor. It can be depicted as a structured system of config files
+which describe various system entities. In code, metabase is represented by the
+<code>Azos.Sky.Metabase.Metabank</code> class. Application developers never create an instance of <code>Metabank</code>,
+as this is done by the <code>BootConfLoader</code> as a part of <code>ISkyApplication</code> chassis setup.
+The VFS is a software-mode component that abstracts the access to files on various
+PaaS and physical layers (i.e. SVN, Amazon S3, Google Drive etc.).
+The VFS usually supports version control, so any changes to the whole metabase are version-controlled.
+This is beneficial for keeping track of releases and rolling-back changes in case of emergencies, so
+all changes in the cluster setup, packages and configuration are always available.</p>
+<img src="/doc/img/metabank.svg">
+<p>The <strong>metabase is a read-only resource</strong> - no process can write to it (think .NET reflection), apps can only
+read system data by <strong>using a rich set of APIs</strong> (see the Reference section).</p>
+<p>Metabase file system root mapped to a local dev folder via version control (e.g. SVN):</p>
+<img src="/doc/img/metabase-files.png">
+<p>Sky OS is designed to scale into a multi-thousand node range, consequently its metadata source must be
+&quot;big&quot; enough to handle many entities, on the other hand the metabase is loaded by every process and we
+can not afford to preload lots of data structures into every process upon start, therefore
+<strong>metabase uses lazy-loading</strong> patterns with extensive caching on multiple levels. For example,
+when a program needs to make a service call to some remote host, it first needs to locate this host
+in the system, check if the host is dynamic, resolve it’s address etc. The system may also consider
+multiple hosts that can perform the service, in which case multiple metabase catalogs and sections may be accessed.
+If the process repeats, the data gets read from the in-memory cache.</p>
+<h2 id="metabase-catalogs">Metabase Catalogs</h2>
+<p>Logically a metabase is organized as a set of Catalogs - a top-level folders accessed via VFS.
+Catalogs group related functionality in a single-addressable unit:</p>
+<table>
+<thead>
+<tr>
+<th>Path</th>
+<th>Catalog</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>/app</td>
+<td>Application</td>
+<td>App catalog lists applications along with their inner composition - packages and configuration. It also declares Roles - which are a named kits of applications with startup scripts</td>
+</tr>
+<tr>
+<td>/reg</td>
+<td>Regional</td>
+<td>Regional catalog defines the hierarchical topology of the system. It contains geo regions at the root, branching into sub-regions, NOCs, zones/sub-zones, and hosts. The general or app-specific configuration may be specified at every level for the structural override (discussed below)</td>
+</tr>
+<tr>
+<td>/bin</td>
+<td>Binary</td>
+<td>Contains named binary packages (folders) that get distributed to the destination hosts</td>
+</tr>
+<tr>
+<td>/inc</td>
+<td>include</td>
+<td>Technically not a catalog, but rather a pattern of re-using of include mixins in various configs</td>
+</tr>
+<tr>
+<td>/</td>
+<td>metabase root</td>
+<td>Network service registry, platforms, common config mixins</td>
+</tr>
+</tbody>
+</table>
+<p>Application and Regional catalogs consist of sections which represent a corresponding
+entity both logically and in code. For example <code>/app/applications/AHGov</code> is an application <strong>&quot;AHGov&quot;</strong> accessible in
+code using an instance of <code>SectionApplication</code> class.</p>
+<h2 id="config-file-naming-and-format">Config File Naming and Format</h2>
+<p>Metabase sections contain multiple config files, the <strong><code>$</code> symbol</strong> in the name <strong>represents that the file is for the level</strong> where it is declared:</p>
+<table>
+<thead>
+<tr>
+<th>Pattern</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>$.sky</td>
+<td>Metabase data (Azos Sky Metabase) configuration file. Contains metabase data, not application config</td>
+</tr>
+<tr>
+<td>$.app.laconf</td>
+<td>Provides application configuration override for any app</td>
+</tr>
+<tr>
+<td>$.XYZ.app.laconf</td>
+<td>Provides application configuration override for app called XYZ</td>
+</tr>
+</tbody>
+</table>
+<p>The configuration files can be in any of the formats which Azos supports: <strong>JSON</strong>, <strong>Laconic</strong>, <strong>XML</strong>.
+Laconic being the default format (<em>it is the most convenient format to use for configuration (see the Azos specification for detailed
+Laconic format description)</em>). In order to use different configuration file format, it is sufficient to
+provide a different extension, for example <code>&quot;$.app.xml&quot;</code>.</p>
+<h2 id="amm-tool">AMM Tool</h2>
+<p><strong>Azos Metabase Manager</strong> (AMM) command line tool performs static metabase content analysis and detects various conditions, such as:</p>
+<ul>
+<li>Syntax errors in config files</li>
+<li>Duplications and Omissions, i.e. items referenced in the system but not declared (i.e. unknown applications, hosts, roles, regions etc.)</li>
+<li>Various logical errors, such as improperly mapped contracts, duplicate definitions, gaps in key mappings, network config errors etc.</li>
+</ul>
+<p>As a good practice, AMM tool is executed before metabase changes get committed into the
+version controlled backend, this is usually scripted as a part of CI/CD SDLC process, - this prevents the publication
+of bad metabase data that causes runtime errors.</p>
+<h2 id="regional-geo-catalog">Regional (Geo) Catalog</h2>
+<p>Regional catalog define the physical and logical topology of the Sky OS instance. It starts
+with <code>Region</code> sections defined in directories with <code>&quot;*.r&quot;</code> extension. Every region may have sub-regions and NOCs.</p>
+<img src="/doc/img/cluster-map-01.svg">
+<p>A NOC stands for <strong>&quot;Network Operation Center&quot;</strong>, represented by directories with <code>&quot;*.noc&quot;</code> extension.
+NOCs are further broken into <code>Zones</code> <code>&quot;*.z&quot;</code> and sub-zones - zones within zones.
+Zones contain hosts - <code>&quot;*.h&quot;</code> directories.</p>
+<img src="/doc/img/cluster-topology-01.svg">
+<p>Here is an example branch of regional catalog:</p>
+<pre><code class="lang-CSharp">+ World.r
+-    EU.r
+-        Bern.noc
+-             DB.z
+                  Zgov1
+                  Zgov2
+
+  -               Usr.z
+                      mongo01
+                      mongo02
+                      mysql1
+                      mysql2
+                      mysql3
+
+  -               Fin.z
+                      mysql1
+                      mysql2
+                      mysql3
+                      mysql4
+                      mysql5
+
+-             WWW.z
+                  Proxy1
+                  Proxy2
+                  Www1 — //full path example: &quot;/World/EU/Bern/WWW/Www1&quot;
+                  Www2
+                  Www3
+                  Www4
+
+-             Worker.z
+                  Worker1
+                  Worker2
+                  Worker3
+                  Worker4
+....
+</code></pre>
+</article>
+          </div>
+          
+          <div class="hidden-sm col-md-2" role="complementary">
+            <div class="sideaffix">
+              <div class="contribution">
+                <ul class="nav">
+                  <li>
+                    <a href="https://github.com/azist/azos/blob/master/src/Azos.Sky/Metabase/readme.md/#L1" class="contribution-link">Improve this Doc</a>
+                  </li>
+                </ul>
+              </div>
+              <nav class="bs-docs-sidebar hidden-print hidden-xs hidden-sm affix" id="affix">
+              <!-- <p><a class="back-to-top" href="#top">Back to top</a><p> -->
+              </nav>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <footer>
+        <div class="grad-bottom"></div>
+        <div class="footer">
+          <div class="container">
+            <span class="pull-right">
+              <a href="#top">Back to top</a>
+            </span>
+            
+            <span>Generated by <strong>DocFX</strong></span>
+          </div>
+        </div>
+      </footer>
+    </div>
+    
+    <script type="text/javascript" src="../../../styles/docfx.vendor.js"></script>
+    <script type="text/javascript" src="../../../styles/docfx.js"></script>
+    <script type="text/javascript" src="../../../styles/main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,184 @@
+﻿<!DOCTYPE html>
+<!--[if IE]><![endif]-->
+<html>
+  
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+    <title>Azos Instrumentation and Telemetry </title>
+    <meta name="viewport" content="width=device-width">
+    <meta name="title" content="Azos Instrumentation and Telemetry ">
+    <meta name="generator" content="docfx 2.40.6.0">
+    
+    <link rel="shortcut icon" href="../../../favicon.ico">
+    <link rel="stylesheet" href="../../../styles/docfx.vendor.css">
+    <link rel="stylesheet" href="../../../styles/docfx.css">
+    <link rel="stylesheet" href="../../../styles/main.css">
+    <meta property="docfx:navrel" content="../../../toc">
+    <meta property="docfx:tocrel" content="../../../toc">
+    
+    
+    
+  </head>
+  <body data-spy="scroll" data-target="#affix" data-offset="120">
+    <div id="wrapper">
+      <header>
+        
+        <nav id="autocollapse" class="navbar navbar-inverse ng-scope" role="navigation">
+          <div class="container">
+            <div class="navbar-header">
+              <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#navbar">
+                <span class="sr-only">Toggle navigation</span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+              </button>
+              
+              <a class="navbar-brand" href="../../../index.html">
+                <img id="logo" class="svg" src="../../../logo.svg" alt="">
+              </a>
+            </div>
+            <div class="collapse navbar-collapse" id="navbar">
+              <form class="navbar-form navbar-right" role="search" id="search">
+                <div class="form-group">
+                  <input type="text" class="form-control" id="search-query" placeholder="Search" autocomplete="off">
+                </div>
+              </form>
+                
+                <ul class="nav level1 navbar-nav">
+                      <li>
+                          <a href="../../documentation-index.html" name="" title="Azos">Azos</a>
+                      </li>
+                      <li>
+                          <a href="../../../out/api/Azos.html" name="" title="API Documentation">API Documentation</a>
+                      </li>
+                </ul>    </div>
+          </div>
+        </nav>
+        
+        <div class="subnav navbar navbar-default">
+          <div class="container hide-when-search" id="breadcrumb">
+            <ul class="breadcrumb">
+              <li></li>
+            </ul>
+          </div>
+        </div>
+      </header>
+      <div role="main" class="container body-content hide-when-search">
+        <div class="article row grid">
+          <div class="col-md-10">
+            <article class="content wrap" id="_content" data-uid="">
+<h1 id="azos-instrumentation-and-telemetry">Azos Instrumentation and Telemetry</h1>
+
+<p>Back to <a href="/src/documentation-index.md">Documentation Index</a></p>
+<p>Instrumentation is a built-in feature of Application Chassis and does not require any 3rd party libs. It is somewhat
+similar to logging in a sense that it processes data messages and sends them to sink for storage/processing/visualization.
+However there are a few key differences, one being that instrumentation performs map:reduce of captured data before writing them to
+instrumentation provider.</p>
+<p>Instrumentation provides a uniform way of emitting instances of <a href="/src/Azos/Instrumentation/Datum.cs"><code>Datum</code></a> (singular of Data). There are two types of data messages processed by instrumentation stack:</p>
+<ul>
+<li><strong>Events</strong> - events just happen, their primary data is their appearance at a certain time. An example would be <code>ProcessCrashEvent</code></li>
+<li><strong>Gauges</strong> - gauges are events with measurements (usually scalar). Example: <code>VoltageGauge</code> - measures AC voltage (measured in volts) at a certain time. A gauge measurement is an event of capturing a certain value</li>
+</ul>
+<p><strong>You instrument your code by creating custom Datum-based classes</strong> deriving from <code>Gauge</code> or <code>Event</code> classes, directly or indirectly.
+Make a measurement by allocating a new instance of the appropriate class and then call <code>App.Instrumentation.Record( datum )</code> method which routes
+your measurements down the processing stack.</p>
+<h2 id="instrumentation-contract">Instrumentation Contract</h2>
+<p><a href="/src/Azos/Instrumentation/Intfs.cs"><code>IInstrumentation</code></a> provides the <code>Record(Datum)</code> method which writes measurement into the stack, it is synchronous because instrumentation stack is
+asynchronous by design and this method never blocks for long (expected to return in the microsecond range):</p>
+<pre><code class="lang-CSharp">/// &lt;summary&gt;
+/// Stipulates instrumentation contract
+/// &lt;/summary&gt;
+public interface IInstrumentation : IApplicationComponent, ILocalizedTimeProvider
+{
+  // Indicates whether instrumentation is enabled
+   bool Enabled { get;}
+
+  // Records instrumentation datum
+  void Record(Datum datum);
+  ...
+}
+</code></pre>
+<p><code>Datum</code> class represents either a single measurement event or an aggregate, in which case Count &gt; 0.
+The <code>InstrumentationDaemon</code> perform map:reduce of data in the background. This is where instrumentation stack differs from logging stack drastically.
+Instrumentation performs mapping of measurements by their Datum-derived type, then it reduces
+the data by calculating the aggregate measurement on a source data.</p>
+<h2 id="example-mapreduce-of-instrumentation-data">Example Map:Reduce of Instrumentation Data</h2>
+<p>Consider the following example:</p>
+<ul>
+<li>Imagine an application that instruments an electrical power plant</li>
+<li>The Following data is captured, notice the use of Datum.Source for detalization of measurements by generator/plant:
+<ul>
+<li><code>GeneratorRPMGauge(source)</code>: measures revolutions per minute per measurement source</li>
+<li><code>GeneratorVoltageGauge(source)</code>: measures generated voltage in volts per measurement source</li>
+</ul>
+</li>
+<li>The data is measured by various devices and captured by various threads at different times</li>
+<li>The instrumentation stack performs a mapreduce once every specified milliseconds interval
+<ul>
+<li>It groups all data by their type <strong>and then</strong> by their source</li>
+<li>It creates a single new Aggregate datum out of grouped result obtained above per every grouping</li>
+<li>It writes the resulting aggregated result into the sink (e.g. database or archive)</li>
+</ul>
+</li>
+</ul>
+<p>...therefore, we can control the level of detail by specifying the appropriate <code>source</code>. In the example above, we
+should probably measure <code>GeneratorRPMGauge(per generatorID)</code> and measure <code>GeneratorVoltageGauge(per generatorID)</code> -
+this way we will be able to track those parameters per every individual generator and cross-facility
+(for the null source).</p>
+<p>You can override the following virtual method to control the level of instrumentation detail:</p>
+<pre><code class="lang-CSharp">/// &lt;summary&gt;
+/// Override to set a new source value which is less-specific than existing source.
+/// ReductionLevel specifies how much detail should be lost. The function is idempotent, that is - calling more than once with the same arg does not
+/// change the state of the object.
+/// The default implementation removes all source details (unspecified source) when reductionLevel less than zero.
+/// Example:
+///  TotalBytesSent(&quot;mpx://45.12.123.19:7823 -&gt; MySystem.Contracts.IDoSomething.SomeMethod1()&quot;)
+///  ReduceSourceDetail(0) -&gt; yields original string
+///  ReduceSourceDetail(1) - &gt; &quot;MySystem.Contracts.IDoSomething.SomeMethod1()&quot;
+///  ReduceSourceDetail(2) - &gt; &quot;MySystem.Contracts.IDoSomething&quot;
+///  ReduceSourceDetail(3) - &gt; &quot;&quot;
+/// &lt;/summary&gt;
+public virtual void ReduceSourceDetail(int reductionLevel);
+</code></pre>
+<hr>
+<p>Back to <a href="/src/documentation-index.md">Documentation Index</a></p>
+</article>
+          </div>
+          
+          <div class="hidden-sm col-md-2" role="complementary">
+            <div class="sideaffix">
+              <div class="contribution">
+                <ul class="nav">
+                  <li>
+                    <a href="https://github.com/azist/azos/blob/master/src/Azos/Instrumentation/readme.md/#L1" class="contribution-link">Improve this Doc</a>
+                  </li>
+                </ul>
+              </div>
+              <nav class="bs-docs-sidebar hidden-print hidden-xs hidden-sm affix" id="affix">
+              <!-- <p><a class="back-to-top" href="#top">Back to top</a><p> -->
+              </nav>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <footer>
+        <div class="grad-bottom"></div>
+        <div class="footer">
+          <div class="container">
+            <span class="pull-right">
+              <a href="#top">Back to top</a>
+            </span>
+            
+            <span>Generated by <strong>DocFX</strong></span>
+          </div>
+        </div>
+      </footer>
+    </div>
+    
+    <script type="text/javascript" src="../../../styles/docfx.vendor.js"></script>
+    <script type="text/javascript" src="../../../styles/docfx.js"></script>
+    <script type="text/javascript" src="../../../styles/main.js"></script>
+  </body>
+</html>

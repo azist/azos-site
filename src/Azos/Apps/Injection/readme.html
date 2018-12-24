@@ -1,0 +1,330 @@
+﻿<!DOCTYPE html>
+<!--[if IE]><![endif]-->
+<html>
+  
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+    <title>Dependency Injection </title>
+    <meta name="viewport" content="width=device-width">
+    <meta name="title" content="Dependency Injection ">
+    <meta name="generator" content="docfx 2.40.6.0">
+    
+    <link rel="shortcut icon" href="../../../../favicon.ico">
+    <link rel="stylesheet" href="../../../../styles/docfx.vendor.css">
+    <link rel="stylesheet" href="../../../../styles/docfx.css">
+    <link rel="stylesheet" href="../../../../styles/main.css">
+    <meta property="docfx:navrel" content="../../../../toc">
+    <meta property="docfx:tocrel" content="../../../../toc">
+    
+    
+    
+  </head>
+  <body data-spy="scroll" data-target="#affix" data-offset="120">
+    <div id="wrapper">
+      <header>
+        
+        <nav id="autocollapse" class="navbar navbar-inverse ng-scope" role="navigation">
+          <div class="container">
+            <div class="navbar-header">
+              <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#navbar">
+                <span class="sr-only">Toggle navigation</span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+              </button>
+              
+              <a class="navbar-brand" href="../../../../index.html">
+                <img id="logo" class="svg" src="../../../../logo.svg" alt="">
+              </a>
+            </div>
+            <div class="collapse navbar-collapse" id="navbar">
+              <form class="navbar-form navbar-right" role="search" id="search">
+                <div class="form-group">
+                  <input type="text" class="form-control" id="search-query" placeholder="Search" autocomplete="off">
+                </div>
+              </form>
+                
+                <ul class="nav level1 navbar-nav">
+                      <li>
+                          <a href="../../../documentation-index.html" name="" title="Azos">Azos</a>
+                      </li>
+                      <li>
+                          <a href="../../../../out/api/Azos.html" name="" title="API Documentation">API Documentation</a>
+                      </li>
+                </ul>    </div>
+          </div>
+        </nav>
+        
+        <div class="subnav navbar navbar-default">
+          <div class="container hide-when-search" id="breadcrumb">
+            <ul class="breadcrumb">
+              <li></li>
+            </ul>
+          </div>
+        </div>
+      </header>
+      <div role="main" class="container body-content hide-when-search">
+        <div class="article row grid">
+          <div class="col-md-10">
+            <article class="content wrap" id="_content" data-uid="">
+<h1 id="dependency-injection">Dependency Injection</h1>
+
+<p>Back to <a href="/src/documentation-index.md">Documentation Index</a></p>
+<p>Azos provides a built-in class field dependency injector accessible via <code>IApplication.DependecyInjector</code>
+property. Azos <strong>system servers</strong> (Mvc controllers, Glue servers) <strong>invoke DI mechanisms
+automatically</strong>, so by the time action methods are called, the controller/server has already been injected into.</p>
+<p>The default DI injector injects application-chassis-rooted objects, components such as: app, log, data store, glue, modules, etc.
+This is done on purpose to establish a hierarchical application component-based architecture
+and limit the frivolous allocation of components and their inter-dependencies. <strong>The components should &quot;talk&quot; via their director.</strong>
+See <a href="/src/Azos/Apps">Azos Application</a> overview.</p>
+<h2 id="how-to-inject">How to Inject</h2>
+<p>When developing application code, you decorate private fields in you business domain classes with <code>[Inject]</code> attributes.
+The fields <strong>get injected upon invocation</strong> of <code>IApplicationDependencyInjector</code> on the instance being injected-into:
+<code>App.DependencyInjector.InjectInto( myInstance )</code>. This is handled automatically by the framework for server modules (Glue and Mvc),
+so one rarely (if ever) needs to call DI service manually.</p>
+<blockquote>
+<p><strong>Why field injection</strong> specifically, and not property injector? - this is because until C# 7.3
+there is no way to target backing field for auto-properties attribution, the <code>[field:NonSerialized] public X{get;set;}</code>
+was not available on prior versions of C# compiler., furthermore setting private fields is no different than what is
+typically used in constructor DI for testing.</p>
+</blockquote>
+<p>You can also implement a custom injection code using <a href="/src/Azos/Apps/Injection/IApplicationDependencyInjector.cs"><code>IApplicationInjection</code></a>
+interface on your instance, which will be called by an injector.</p>
+<p>You can create a constructor with dependency parameters for testing. This constructor will be used just to manually allocate
+objects in your unit tests. This is not a requirement of the framework, as you can use DI in unit testing as easily
+(invoke DI in unit tests instead of adding a special constructor). Note: <em>some developers argue that adding a constructor is
+easier for understanding of what dependencies are needed for test</em></p>
+<blockquote>
+<p>Fields decorated with <code>[Inject]</code><em>(and its derivatives)</em> are excused from binary Slim and JSON serialization as they are
+transitive dependencies. Consequently, these fields are not deserialized back, for example while working with Pile cache
+or object store. The injected dependencies are also lost during inter-process teleportation as different process has
+different dependency sources. Use <a href="#di-extension-method-pattern">&quot;DI Extension Method Pattern&quot;</a> described below</p>
+</blockquote>
+<h2 id="inject-what">Inject What</h2>
+<p>You can inject whatever component is supported by the injector. The default injector supports objects rooted at the app chassis.
+This is purposely done to limit the &quot;choices&quot; and preclude chaotic object inter-dependencies.</p>
+<p>The default injector <a href="/src/Azos/Apps/Injection/ApplicationDependencyInjector.cs"><code>ApplicationDependencyInjector</code></a> interprets
+<a href="/src/Azos/Apps/Injection/Attributes.cs"><code>InjectAttribute</code></a> on all decorated fields. Inject attribute <code>Apply()</code> method does probing:
+it takes the field declaration type or <code>Type</code> parameter specified in the constructor and sees if it is an <code>IModule</code> then it tries to get
+module by type, then by name, then inspects app root objects.</p>
+<p>There are a few derivatives of <code>InjectAttribute</code> that do not do the full probing:</p>
+<ul>
+<li><strong>InjectModuleAttribute</strong> - injects modules only of <code>App.ModuleRoot</code> property (used: <code>[InjectModule] IMyModule module;</code>)</li>
+<li><strong>InjectSingletonAttribute</strong> - injects app singleton instance by type(used: <code>[InjectSingleton] MyProcess process;</code>)</li>
+</ul>
+<p>The following app root objects are supported:</p>
+<pre><code class="lang-CSharp">//ApplicationDependencyInjector.cs
+/// &lt;summary&gt;
+/// Enumerates app injectable roots (root application chassis objects).
+/// This method is usually used by [Inject]-derived attributes for defaults
+/// &lt;/summary&gt;
+public virtual IEnumerable&lt;object&gt; GetApplicationRoots()
+{
+    yield return App;
+    yield return App.Log;
+    yield return App.DataStore;
+    yield return App.Instrumentation;
+    yield return App.SecurityManager;
+    yield return App.Random;
+    yield return App.TimeSource;
+    yield return App.Glue;
+    yield return App.ObjectStore;
+    yield return App.EventTimer;
+}
+</code></pre>
+<p>The dependency injection is performed into private fields decorated with the <code>[Inject]</code> attribute. Once injected,
+you can references dependencies in the <code>Validate()</code>(and any other) method. In our example we invoke validation
+routine which checks if the specified email is used by some other patient ID - this is an example of module injection.
+Modules are loaded during app boot (by default), and can be resolved via <code>App.ModuleRoot.Get&lt;IModule&gt;(name)</code> service locator,
+by code. The DI injects those fields for you so you do not need to use Service location.</p>
+<p>To activate DI, one must use the following <a href="/src/Azos/Apps/Injection/IApplicationDependencyInjector.cs"><code>IApplicationDependencyInjector</code></a>,
+which is accessible via <code>App.DependencyInjection</code> property:</p>
+<pre><code class="lang-CSharp"> /// &lt;summary&gt;
+ /// Designates entities that process [Inject]-decorated fields and IApplicationInjection on
+ /// a target objects passed into InjectInto(target) method.
+ /// Access application default injector using IApplication.DependencyInjector property
+ /// &lt;/summary&gt;
+ public interface IApplicationDependencyInjector : IApplicationComponent
+ {
+  /// &lt;summary&gt;
+  /// Injects application context along with its derivatives (e.g. modules, logs etc.) as
+  /// specified by the field-level attribute decorations on a target instance
+  /// &lt;/summary&gt;
+  void InjectInto(object target);
+...
+}
+</code></pre>
+<p>Azos applications provide default implementation based on <a href="/src/Azos/Apps/Injection/ApplicationDependencyInjector.cs">ApplicationDependencyInjector.cs</a>.
+This implementation uses reflection and injects dependencies rooted at IApplication. You can certainly create a specific injector
+and inject something else but this is not needed in 99% of cases. Azos purposely roots business logic, logging, and data access of the
+central application chassis so the design is very simple, testable and efficient.</p>
+<h2 id="example">Example</h2>
+<p>As an example, let us consider the following domain entity (a model) representing <code>Patient</code> data:</p>
+<pre><code class="lang-CSharp">[Table(&quot;tbl_patient&quot;)]
+public Patient : TypedDoc
+{
+  private Patient(){}
+
+  //This .ctor is used for testing injection; it is not mandatory
+  public Patient(ILog log, IPatientValidationModule validation)
+  {
+    m_Log = log;
+    m_Validation = validation;
+  }
+
+  [Inject] ILog m_Log;
+  [Inject] IPatientValidationModule m_Validation;
+
+  [Field(required: true, maxSize: Domains.ID_MAX_SZ)]
+  public string PatientID { get; set; }
+ 
+  [Field(required: true, kind: DataKind.EMail, maxSize: Domains.EMAIL_MAX_SZ)] 
+  public string EMail { get; set; }
+
+.....
+
+  public override Exception Validate(string target = null)
+  {
+    var error = base.Validate(target);
+    if (error!=null) return error;
+
+    var emailAlreadyUsed = m_Validation.CheckPrimaryEMailUseByAnother(this.PatientID, this.EMail);
+    if (emailAlreadyUsed)
+    {
+      this.LogWarning(m_Log, &quot;Duplicate email&quot;);
+      return new FieldValidationException(nameof(Patient), nameof(EMail), &quot;The specified Email is already in use&quot;);
+    }
+
+    return null;
+  }
+}
+</code></pre>
+<p>The class is a data document deriving from <code>TypedDoc</code> so Azos CRUD data stores know how to auto generate SQL and map
+DB data into this model automatically, also Azos Wave Mvc model binder knows how to take client-side POST and supply
+the model instance filled with data into controller body. We will see how this done a bit later.</p>
+<p><code>Patient</code> model has two constructors: one private parameterless which is used by de-serializers and binders, it is not
+technically needed but it is good pattern for possible ctor chaining; the second constructor takes the &quot;complex&quot; signature
+and will not be auto-invoked by Azos automatically. Azos does not support auto constructor injection on purpose
+(see philosophy/problems with general purpose DI), so the 2nd ctor is only used for unit testing and is not mandatory to
+have for DI to operate.</p>
+<p>Lets consider a microservice server module implemented using <a href="/src/Azos/Glue">Glue (Azos microservice RPC framework)</a>:</p>
+<pre><code class="lang-CSharp">  [Glued]
+  public interface IPatientRepository
+  {
+    Patient GetByID(string id);
+    void AdmitNew(Patient patient);
+  }
+....
+public class PatientRepositoryServer : IPatientRepository
+{
+  //this ctor is used for unit testing (not required)
+  public PatientRepositoryServer(IApplication app)  =&gt; m_DataStore = (m_App = app).DataStore;
+
+  [Inject] IApplication m_App;
+  [Inject] IMyAppDataStore m_DataStore;
+
+  public Patient GetById(string id)
+  {
+    return m_DataStore.Clinical.Fetch&lt;Patient&gt;(id);
+  }
+  
+  public void AdmitNew(Patient patient)
+  {
+    var error = patient.Validate(m_App);//context/DI injection
+    if (error!=null) { ..... throw error; ....}
+    m_DataStore.Clinical.Save(patient);
+  }
+}
+</code></pre>
+<p>The DI into the server module is done automatically by the Glue framework which activates the server module. Pay attention to the payload type,
+the method takes <code>Patient</code> model from the client, and it needs some context internally for validation. We invoke <code>Validate(IApplication)</code>
+extension method (DI Extension Method Pattern) which performs the dependency injection and calls <code>Validate()</code> on the model. Notice the constructor which is used for
+unit testing of the Glue server module.</p>
+<h2 id="di-extension-method-pattern">DI Extension Method Pattern</h2>
+<p>Business domain objects may need to introduce specific method logic. Those methods would probably need various dependencies.
+DI Extension method pattern is used to extend DI functionality into custom methods. This approach allows to keep <strong><code>IApplication</code> context
+as an ambient parameter</strong> instead of passing it around various methods which is inconvenient.</p>
+<p>Consider <code>document.Validate()</code> method described above. When invoked it has to ensure that context is injected. Azos has a built-in extension method for data
+document validation:</p>
+<pre><code class="lang-CSharp"> // Azos/DataUtils.cs:
+ /// &lt;summary&gt;
+ /// Perform app context injection and calls Validate() on a data Doc
+ /// &lt;/summary&gt;
+ public static Exception Validate(this Doc doc, IApplication app, string targetName = null)
+    =&gt; app.NonNull(nameof(app)).InjectInto(doc.NonNull(nameof(doc))).Validate(targetName);
+
+ // Azos/CoreUtils.cs:
+ /// &lt;summary&gt;
+ /// Shortcut to App.DependencyInjector.InjectInto(...)
+ /// &lt;/summary&gt;
+ public static T InjectInto&lt;T&gt;(this IApplication app, T target) where T : class
+ {
+    app.NonNull(nameof(app)).DependencyInjector.InjectInto(target);
+    return target;
+ }
+</code></pre>
+<p>Now the method is used like so:</p>
+<pre><code class="lang-CSharp">... Mvc Controller ...
+  [Inject] IMyDataStore m_DataStore;// injected by Mvc handler
+
+  [Action(&quot;method=POST&quot;)]
+  public object AdmitNew(Patient patient)
+  {
+   //context/DI injection via extension method
+    var error = patient.Validate(m_DataStore.App); //we have created a validation in the application scope method
+                                                   //keeping the injection as an ambient process 
+    if (error!=null) return error;
+    m_DataStore.Clinical.Save(patient);
+    return new Redirect(URIS.Home);
+  }
+</code></pre>
+<p>You can create extensions for your particular needs as easily.</p>
+<hr>
+<p>Back to <a href="/src/documentation-index.md">Documentation Index</a></p>
+<p>External resources:</p>
+<ul>
+<li><a href="https://en.wikipedia.org/wiki/Service_locator_pattern">Service Location (Wikipedia)</a></li>
+<li><a href="https://en.wikipedia.org/wiki/Dependency_injection">Dependency Injection (Wikipedia)</a></li>
+<li><a href="https://martinfowler.com/articles/injection.html">IoC with Service Location / Dependency Injection by Martin Fowler</a></li>
+<li><a href="http://blog.ploeh.dk/2011/07/28/CompositionRoot/">Composition Root Pattern by Mark Seemann</a></li>
+</ul>
+</article>
+          </div>
+          
+          <div class="hidden-sm col-md-2" role="complementary">
+            <div class="sideaffix">
+              <div class="contribution">
+                <ul class="nav">
+                  <li>
+                    <a href="https://github.com/azist/azos/blob/master/src/Azos/Apps/Injection/readme.md/#L1" class="contribution-link">Improve this Doc</a>
+                  </li>
+                </ul>
+              </div>
+              <nav class="bs-docs-sidebar hidden-print hidden-xs hidden-sm affix" id="affix">
+              <!-- <p><a class="back-to-top" href="#top">Back to top</a><p> -->
+              </nav>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <footer>
+        <div class="grad-bottom"></div>
+        <div class="footer">
+          <div class="container">
+            <span class="pull-right">
+              <a href="#top">Back to top</a>
+            </span>
+            
+            <span>Generated by <strong>DocFX</strong></span>
+          </div>
+        </div>
+      </footer>
+    </div>
+    
+    <script type="text/javascript" src="../../../../styles/docfx.vendor.js"></script>
+    <script type="text/javascript" src="../../../../styles/docfx.js"></script>
+    <script type="text/javascript" src="../../../../styles/main.js"></script>
+  </body>
+</html>

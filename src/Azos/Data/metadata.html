@@ -1,0 +1,414 @@
+﻿<!DOCTYPE html>
+<!--[if IE]><![endif]-->
+<html>
+  
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+    <title>Data Schema Metadata </title>
+    <meta name="viewport" content="width=device-width">
+    <meta name="title" content="Data Schema Metadata ">
+    <meta name="generator" content="docfx 2.40.6.0">
+    
+    <link rel="shortcut icon" href="../../../favicon.ico">
+    <link rel="stylesheet" href="../../../styles/docfx.vendor.css">
+    <link rel="stylesheet" href="../../../styles/docfx.css">
+    <link rel="stylesheet" href="../../../styles/main.css">
+    <meta property="docfx:navrel" content="../../../toc">
+    <meta property="docfx:tocrel" content="../../../toc">
+    
+    
+    
+  </head>
+  <body data-spy="scroll" data-target="#affix" data-offset="120">
+    <div id="wrapper">
+      <header>
+        
+        <nav id="autocollapse" class="navbar navbar-inverse ng-scope" role="navigation">
+          <div class="container">
+            <div class="navbar-header">
+              <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#navbar">
+                <span class="sr-only">Toggle navigation</span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+              </button>
+              
+              <a class="navbar-brand" href="../../../index.html">
+                <img id="logo" class="svg" src="../../../logo.svg" alt="">
+              </a>
+            </div>
+            <div class="collapse navbar-collapse" id="navbar">
+              <form class="navbar-form navbar-right" role="search" id="search">
+                <div class="form-group">
+                  <input type="text" class="form-control" id="search-query" placeholder="Search" autocomplete="off">
+                </div>
+              </form>
+                
+                <ul class="nav level1 navbar-nav">
+                      <li>
+                          <a href="../../documentation-index.html" name="" title="Azos">Azos</a>
+                      </li>
+                      <li>
+                          <a href="../../../out/api/Azos.html" name="" title="API Documentation">API Documentation</a>
+                      </li>
+                </ul>    </div>
+          </div>
+        </nav>
+        
+        <div class="subnav navbar navbar-default">
+          <div class="container hide-when-search" id="breadcrumb">
+            <ul class="breadcrumb">
+              <li></li>
+            </ul>
+          </div>
+        </div>
+      </header>
+      <div role="main" class="container body-content hide-when-search">
+        <div class="article row grid">
+          <div class="col-md-10">
+            <article class="content wrap" id="_content" data-uid="">
+<h1 id="data-schema-metadata">Data Schema Metadata</h1>
+
+<p>Back to <a href="/src/documentation-index.md">Documentation Index</a></p>
+<p>This section describes accessing/working with Data in Azos.
+See also:</p>
+<ul>
+<li><a href="readme.html">Data Access Overview</a></li>
+<li><a href="domains.html">Data Validation with Domains</a></li>
+<li><a href="modeling.html">Data Modeling</a></li>
+</ul>
+<h2 id="overview">Overview</h2>
+<p><code>Azos.Data</code> namespace implements data <code>Schema</code> class which provides definitions for data documents. This is
+used as a metadata (data about data) of <strong>data documents</strong> which are used by many sub-systems of Azos
+framework such as (not a complete list):</p>
+<ul>
+<li>&quot;Database Rows&quot; - work with RDBMS systems (e.g. Oracle, Ms Sql Server, My Sql etc.)</li>
+<li>Documents - work with NoSql hierarchical data a la Mongo Db, Erlang Mnesia, Json</li>
+<li>Service Payload - consume and expose data from/to web services/REST APIs</li>
+<li>JSON serialization - data documents are JSON-serializable</li>
+<li>BSON serialization - data documents are BSON-serializable (binary JSON)</li>
+<li>Arow serialization - high performance version-aware binary serialization</li>
+<li>Various version-tolerant system contracts such as:
+<ul>
+<li>Worker Todos</li>
+<li>Processes</li>
+<li>Protocol Frames</li>
+</ul>
+</li>
+</ul>
+<p><strong>COMPARISON</strong>
+The following projects/frameworks use &quot;schema&quot; concept to decorate CLR type members:</p>
+<ul>
+<li>Libraries like Protobuf.Net or Thrift use special schema definitions to &quot;shape&quot; data</li>
+<li>.Net DataContractSerializer uses its own annotations</li>
+<li>.Net Data Annotations provide metadata for data validation</li>
+</ul>
+<p>Azos data documents (based on schema) <strong>provide UNIVERSAL data-definition layer</strong> which is used for all of the aforementioned tasks.
+<em>There is no need to use additional annotation libraries with Azos</em>. In cases when built-in field attributes
+are not sufficient (e.g. when one needs to store custom metadata per field), you can use custom config vector per field
+which allows for any number/structure of custom config vectors attached to very field.</p>
+<h2 id="schema">Schema</h2>
+<p><a href="Schema.cs">Schema</a> provides definition of data contained in <strong>data documents</strong> aka. <a href="Doc.cs"><code>Doc</code></a> instances.
+Every field definition in schema is represented by an instance of <a href="Schema.cs#L37"><code>FieldDef</code></a> class.</p>
+<p>Schemas are <strong>named immutable objects</strong>. The following diagram depicts schema as a composite of <code>FieldDefs</code> each having
+one or more <strong>targeted attributes</strong> which describe metadata. Lets compare &quot;ORACLE&quot; vs &quot;MySQL-Legacy&quot; below:</p>
+<ul>
+<li>Logical field &quot;Name&quot; is called &quot;name&quot; for &quot;ORACLE&quot; and &quot;nm&quot; for &quot;MySQL-Legacy&quot; targets</li>
+<li>See that min/max string sizes are different for these targets</li>
+<li>The field &quot;DOB&quot; is kept as &quot;date_birth&quot; for both targets (see &quot;Target: *&quot;)</li>
+</ul>
+<p><strong>Note:</strong> targets may represent not only a particular backend technology but also a different backend
+version/structure, as in the example below, older system has slightly different schema</p>
+<img src="/doc/img/data-schema.png" height="500px">
+<p>You can create an arbitrary schema like so:</p>
+<pre><code class="lang-CSharp">  var schema = new Schema(&quot;TEZT&quot;,
+       new Schema.FieldDef(&quot;ID&quot;, typeof(int), new []{ new FieldAttribute(required: true, key: true)}),
+       new Schema.FieldDef(&quot;Description&quot;, typeof(string), new []{ new FieldAttribute(required: true)})
+);
+</code></pre>
+<p>or you can get a schema for any of <code>TypedDoc</code> derivatives which &quot;shape&quot; data explicitly - by constitution. An important
+distinction between ad-hoc and typed schemas - the typed schema instances are pooled per type, so
+if you obtain the schema <strong>for the same type you will get the same instance for all calls</strong>.</p>
+<pre><code class="lang-CSharp">  [Serializable]
+  public class MyType : TypedDoc
+  {
+    public MyType() { ... }
+
+    [Field(required: true, key: true)]
+    public string ID {get; set;}
+
+    [Field(required: true, key: true)]
+    public DateTime StartDate {get; set;}
+
+    [Field(required: true)]
+    public string Description {get; set;}
+  }
+
+ ...
+
+ //The returned schema object instance is POOLED for each type
+ var schema = Schema.GetForTypedDoc&lt;MyType&gt;();
+
+ foreach(var def in schema)
+ {
+   ...
+ }
+</code></pre>
+<h2 id="field-attribute">Field Attribute</h2>
+<p>The <a href="Attributes.cs#L159"><code>FieldAttribute</code></a> class is the cornerstone of metadata specification. Public class properties must
+be decorated by one or more (in case of multi-targeting) <code>[Field]</code> attributes.</p>
+<p>The following table describes <code>FieldAttribute</code> properties (that is: metadata for fields in data documents):</p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>storeFlag</td>
+<td>StoreFlag</td>
+<td>Specifies whether field is skipped, stored, loaded or stored and loaded</td>
+</tr>
+<tr>
+<td>key</td>
+<td>bool</td>
+<td>True to indicate that this field is a (part of) primary key</td>
+</tr>
+<tr>
+<td>kind</td>
+<td>DataKind</td>
+<td>Specifies data kinds such as: <code>Text, ScreenName, Color, Date, DateTime, DateTimeLocal, EMail, Month, Number, Range, Money, Search, Telephone, Time, Url, Week</code></td>
+</tr>
+<tr>
+<td>required</td>
+<td>bool</td>
+<td>True to indicate that field must have a non-null value</td>
+</tr>
+<tr>
+<td>visible</td>
+<td>bool</td>
+<td>True indicates that field is shown on the UI (used for MVVM)</td>
+</tr>
+<tr>
+<td>valueList</td>
+<td>string</td>
+<td>A delimited list of permissible lookup values (lookup dictionary)</td>
+</tr>
+<tr>
+<td>dflt</td>
+<td>object</td>
+<td>Default field value (if any)</td>
+</tr>
+<tr>
+<td>min</td>
+<td>object</td>
+<td>Minimum allowed value or null</td>
+</tr>
+<tr>
+<td>max</td>
+<td>object</td>
+<td>Maximum allowed value or null</td>
+</tr>
+<tr>
+<td>minLength</td>
+<td>int</td>
+<td>Minimum data length, 0 = no limit</td>
+</tr>
+<tr>
+<td>maxLength</td>
+<td>int</td>
+<td>Maximum data length, 0 = no limit</td>
+</tr>
+<tr>
+<td>charCase</td>
+<td>CharCase</td>
+<td>Defaults to <code>AsIs</code>. CharCases are: <code>AsIs, Upper, Lower, Caps</code> <em>The first and subsequent chars after space or '.' are capitalized, the rest left intact</em>, <code>CapsNorm</code> - <em>The first and subsequent chars after space or '.' are capitalized, the rest is lower-cased</em></td>
+</tr>
+<tr>
+<td>backendName</td>
+<td>string</td>
+<td>Specifies how this field is called in the backend, e.g. a field/property <code>DateOfBirth</code> may be called <code>dob</code> in the database</td>
+</tr>
+<tr>
+<td>backendType</td>
+<td>string</td>
+<td>Defines db-specific (per target) type for the field, e.g. &quot;binary image&quot;</td>
+</tr>
+<tr>
+<td>description</td>
+<td>string</td>
+<td>Textual description usually shown as data entry field caption</td>
+</tr>
+<tr>
+<td>metadata</td>
+<td>string</td>
+<td>Laconic configuration vector providing extra ad-hoc metadata for the decorated field</td>
+</tr>
+<tr>
+<td>nonUI</td>
+<td>bool</td>
+<td>Set to True to exclude the field from transportation to client side (such as Web UI); this is used to not send sensitive/internal data to the client</td>
+</tr>
+<tr>
+<td>formatRegExp</td>
+<td>string</td>
+<td>When set, contains regular expression that validates the data</td>
+</tr>
+<tr>
+<td>displayFormat</td>
+<td>string</td>
+<td>When set, provides a mask for .ToString()/display on UI</td>
+</tr>
+<tr>
+<td>isArow</td>
+<td>bool</td>
+<td>True to include the field in Arow serialization</td>
+</tr>
+</tbody>
+</table>
+<p>These properties are usually set directly at the document properties declaration site like so:</p>
+<pre><code class="lang-CSharp">...
+  [Field(required: true,
+         kind: DataKind.ScreenName,
+         charCase: CharCase.Upper,
+         minLength: Domains.MyiScreenName.MIN_LEN,
+         maxLength: Domains.MyiScreenName.MAX_LEN,
+         description: &quot;Screen Name&quot;,
+         metadata: @&quot;Placeholder='Screen Name'
+                     Hint='The value of this field uniquely identifies you in the system'&quot;)]
+  public string Screen_Name { get; set; }
+
+  [Field(required: true,
+         kind: DataKind.EMail,
+         maxLength: Domains.MyiEMail.MAX_LEN,
+         description: &quot;Primary EMail&quot;,
+         metadata: @&quot;Placeholder='Primary EMail'
+                     Hint='E Mail that you use most often. We are not sharing your email with anyone!'
+                     ControlType='Text'&quot;)]
+  public string Primary_EMail { get; set; }
+...
+</code></pre>
+<p>Notable features above: the min/max length checking is isolated into <code>Domains</code> namespace (see <a href="domains.html">Data Validation with Domains</a>),
+also <strong>custom metadata is used</strong> to introduce <code>Placeholder</code>, <code>Hint</code>, and <code>ControlType</code> extra attributes which are used by the
+client-side view system.</p>
+<h2 id="form-models">Form Models</h2>
+<p>There are many cases when multiple models are needed around the same data source. A good example would be a &quot;UserRow&quot; of data containing
+fields for password hash, however users enter ID and password twice. The password hash gets computed and stored, the password fields are not
+stored at all.</p>
+<p>To facilitate UI/consumer-driven modeling (vs backend/domain-driven) Azos provides <a href="Form.cs"><code>Form</code></a> class that signifies the purpose - <strong>forms
+are used as a projection of data documents to provide an alternate view of data</strong> (usually for user entry). Forms are data documents, the difference
+is in the intent.</p>
+<p>When you declare a form you usually clone many fields from existing data doc model. The copious field declaration would have been prohibitively
+inconvenient to say the least. Azos provides a <strong>prototypical metadata cloning pattern</strong> for solving the issue as illustrated:</p>
+<pre><code class="lang-CSharp">//We are in another doc or form, e.g. UserRegistrationForm
+...
+  [Field(typeof(UserRow))] //Take all metadata from the field with the same name in UserRow class
+  public string Screen_Name { get; set; }
+  
+  [Field(typeof(UserRow))]
+  public string Primary_EMail { get; set; }
+...
+</code></pre>
+<p>The example above is based on the prior one. We have just brought in 2 fields from a different schema - we <strong>cloned all field metadata</strong> so
+we do not need to repeat it here again.</p>
+<p>If you need to make some changes to metadata in a proto-cloned field, you can do so by specifying those override on the declaration level:</p>
+<pre><code class="lang-CSharp">  //We are going to override backendName and required constraint
+  //take the rest of definition from UserRow.Lazzzt_Name
+  [Field(typeof(UserRow), &quot;Lazzzt_Name&quot;,  backendName: &quot;abra&quot;, required: false)]
+  public string Last_Name { get; set; }
+</code></pre>
+<p>Here is an example how forms being used in <code>Azos.Wave.Mvc</code> controller:</p>
+<pre><code class="lang-CSharp">  [SiteUserPermission, UserSocialVisibilityPermission]
+  [Action(&quot;response&quot;, 0, &quot;match{methods=POST accept-json=true}&quot;)]
+  public object ResponsePost(ResponseForm form)
+  {
+    var error = form.Validate();
+    object data;
+    if (error == null)
+        error = form.Save(out data);
+    return new JSONResult(new { OK = error == null, error?.Message }, JSONWritingOptions.Compact);
+  }
+</code></pre>
+<h2 id="data-validation">Data Validation</h2>
+<p>Data documents validate data by calling  <a href="Doc.cs#L238"><code>Doc.Validate()</code></a> which in turn loops though all fields
+and calls <a href="Doc.cs#L242"><code>ValidateField()</code></a> for each.</p>
+<p><code>Doc.Validate(target)</code> is virtual - this is where you write custom code to perform cross-field validation of your documents.
+Do not forget to call the base  method which loops through fields:</p>
+<pre><code class="lang-CSharp">  public override Exception Validate(string targetName)
+  {
+    var error = base.Validate(targetName);//call base first
+    if (error != null) return error;      //return on error
+
+    if (field1&gt;field2)//perform cross-field validation check
+      return new FieldValidationException(Schema.Name, &quot;field1&quot;, &quot;Field1 must be below field2&quot;);
+
+    return null; //no errors
+  }
+</code></pre>
+<p>The base call would validate field-by-field via <a href="Doc.cs#L242"><code>ValidateField()</code></a> call. You can override it to
+perform custom actions in the same manner as you do for the whole doc. Do not forget to call the base method (unless you purposely do not need it).</p>
+<p>The default implementation of Doc.<a href="Doc.cs#L242"><code>ValidateField()</code></a> performs the following checks which are all based on
+metadata supplied via <code>[Field]</code> attributes:</p>
+<ol>
+<li>Check required value</li>
+<li>If value is <a href="Intfs.cs#L24"><code>IValidatable</code></a> - call it - this allows you to do custom complex validations</li>
+<li>If value is <code>IEnumerable&lt;IValidatable&gt;</code> - validate each item in the enumeration (<code>Doc</code> is IValidatable, so this case covers <code>Doc[]</code> and <code>List&lt;Doc&gt;</code>)</li>
+<li>If value is <code>IEnumerable&lt;KeyValuePair&lt;string, IValidatable&gt;&gt;</code> - validate each entry</li>
+<li>If metadata defines lookup dictionary constraint via <code>ValueList</code> - validate value against permissible keys</li>
+<li>Check Min/Max lengths if constraint is set</li>
+<li>Check  screen name correctness if constraint is set (&quot;ALEX-1&quot; is ok, &quot;-ALEX1&quot; is bad, &quot;ALEX--1&quot; is bad etc.)</li>
+<li>Check Email constraint if set</li>
+<li>Check Telephone constraint if set</li>
+<li>If value is <code>IComparable</code> and min/max are set - check</li>
+<li>Check Regexp if set, using value.ToString()</li>
+</ol>
+<p>See also:</p>
+<ul>
+<li><a href="readme.html">Data Access Overview</a></li>
+<li><a href="domains.html">Data Validation with Domains</a></li>
+<li><a href="modeling.html">Data Modeling</a></li>
+</ul>
+<p>Back to <a href="/src/documentation-index.md">Documentation Index</a></p>
+</article>
+          </div>
+          
+          <div class="hidden-sm col-md-2" role="complementary">
+            <div class="sideaffix">
+              <div class="contribution">
+                <ul class="nav">
+                  <li>
+                    <a href="https://github.com/azist/azos/blob/master/src/Azos/Data/metadata.md/#L1" class="contribution-link">Improve this Doc</a>
+                  </li>
+                </ul>
+              </div>
+              <nav class="bs-docs-sidebar hidden-print hidden-xs hidden-sm affix" id="affix">
+              <!-- <p><a class="back-to-top" href="#top">Back to top</a><p> -->
+              </nav>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <footer>
+        <div class="grad-bottom"></div>
+        <div class="footer">
+          <div class="container">
+            <span class="pull-right">
+              <a href="#top">Back to top</a>
+            </span>
+            
+            <span>Generated by <strong>DocFX</strong></span>
+          </div>
+        </div>
+      </footer>
+    </div>
+    
+    <script type="text/javascript" src="../../../styles/docfx.vendor.js"></script>
+    <script type="text/javascript" src="../../../styles/docfx.js"></script>
+    <script type="text/javascript" src="../../../styles/main.js"></script>
+  </body>
+</html>

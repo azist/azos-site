@@ -1,0 +1,226 @@
+﻿<!DOCTYPE html>
+<!--[if IE]><![endif]-->
+<html>
+  
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+    <title>Azos Logging </title>
+    <meta name="viewport" content="width=device-width">
+    <meta name="title" content="Azos Logging ">
+    <meta name="generator" content="docfx 2.40.6.0">
+    
+    <link rel="shortcut icon" href="../../../favicon.ico">
+    <link rel="stylesheet" href="../../../styles/docfx.vendor.css">
+    <link rel="stylesheet" href="../../../styles/docfx.css">
+    <link rel="stylesheet" href="../../../styles/main.css">
+    <meta property="docfx:navrel" content="../../../toc">
+    <meta property="docfx:tocrel" content="../../../toc">
+    
+    
+    
+  </head>
+  <body data-spy="scroll" data-target="#affix" data-offset="120">
+    <div id="wrapper">
+      <header>
+        
+        <nav id="autocollapse" class="navbar navbar-inverse ng-scope" role="navigation">
+          <div class="container">
+            <div class="navbar-header">
+              <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#navbar">
+                <span class="sr-only">Toggle navigation</span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+              </button>
+              
+              <a class="navbar-brand" href="../../../index.html">
+                <img id="logo" class="svg" src="../../../logo.svg" alt="">
+              </a>
+            </div>
+            <div class="collapse navbar-collapse" id="navbar">
+              <form class="navbar-form navbar-right" role="search" id="search">
+                <div class="form-group">
+                  <input type="text" class="form-control" id="search-query" placeholder="Search" autocomplete="off">
+                </div>
+              </form>
+                
+                <ul class="nav level1 navbar-nav">
+                      <li>
+                          <a href="../../documentation-index.html" name="" title="Azos">Azos</a>
+                      </li>
+                      <li>
+                          <a href="../../../out/api/Azos.html" name="" title="API Documentation">API Documentation</a>
+                      </li>
+                </ul>    </div>
+          </div>
+        </nav>
+        
+        <div class="subnav navbar navbar-default">
+          <div class="container hide-when-search" id="breadcrumb">
+            <ul class="breadcrumb">
+              <li></li>
+            </ul>
+          </div>
+        </div>
+      </header>
+      <div role="main" class="container body-content hide-when-search">
+        <div class="article row grid">
+          <div class="col-md-10">
+            <article class="content wrap" id="_content" data-uid="">
+<h1 id="azos-logging">Azos Logging</h1>
+
+<p>Back to <a href="/src/documentation-index.md">Documentation Index</a></p>
+<p>Logging is necessary in any kind of application, therefore it is the first service booted by Application Chassis.
+Logging is represented by <a href="/src/Azos/Log/Intfs.cs"><code>ILog</code></a> contract and mounted on <code>IApplication.Log</code> property.</p>
+<p>The Azos.Log has the following traits:</p>
+<ul>
+<li>Designed for use in local and <strong>distributed systems</strong> (e.g. Sky)
+<ul>
+<li>Built for high-performance async-first processing</li>
+<li>Built-in per-sink SLA which drives in-built EMA filter-guarded circuit breaker</li>
+<li>Every message captures a <strong>host name</strong>, which is set to a local machine name or global host name in a Sky cluster</li>
+<li>Exceptions are not necessarily serializable, therefore they can not be marshaled across cluster boundaries as-is.
+<a href="/src/Azos/Exceptions.cs#L284"><code>WrappedException</code></a> type takes care of this by capturing custom exception information and making it suitable for marshaling and long term storage (i.e. archiving)</li>
+</ul>
+</li>
+<li>Supports message archiving
+<ul>
+<li>Built-in BSON serialization suitable for binary logs and long-term storage (e.g. as is in MongoDb)</li>
+<li>The system extracts <code>ArchiveDimensions</code> which may be used for OLAP warehousing</li>
+</ul>
+</li>
+<li>Multi-channeling
+<ul>
+<li>Applications may use different &quot;planes&quot; aka &quot;channels&quot; of logging for different purposes</li>
+<li>Channels may be processed differently, e.g. a security channel may stash the log in a long-term archive, it is possible to create a separate <strong>channel for member enrollment or other business-specific</strong> process</li>
+</ul>
+</li>
+</ul>
+<h2 id="component-logging">Component Logging</h2>
+<p>While developing application components (such as business logic modules), <code>ApplicationComponent.WriteLog(...)</code> should be used
+instead of direct <code>App.Log</code> access. The method checks <code>ComponentEffectiveLogLevel</code> property and set proper <code>Topic</code> and <code>From</code> prefixes
+per component:</p>
+<pre><code class="lang-CSharp">private void logicBody(DomainObject data)
+{
+  //get message correlation Guid, then relate other log entries to it
+  //the nameof(logicBody) is used as a suffix for the `From` property
+  var thisCall = WriteLog(MessageType.Trace, nameof(logicBody), &quot;Entering...&quot;);
+  try
+  {
+    //do some business logic with passed-in data object
+    //handle all exceptions so nothing leaks
+  }
+  catch(Exception error)
+  {
+    //should ANYTHING unexpected leak we log it
+    WriteLog(MessageType.Critical, nameof(logicBody), &quot;Unexpected leak: {0}&quot;.Args(error.ToMessageWithType()), error, relatedTo: thisCall);
+    
+    //instrument the failure
+    MemberProcessingErrorEvent.Happened(App.Instrumentation, member.ID);
+  }
+  WriteLog(MessageType.Trace, nameof(logicBody), &quot;...Exited&quot;, relatedTo: thisCall);
+}
+</code></pre>
+<p>In the example above, if the containing app component has its <code>ComponentLogLevel</code> set above <code>Trace</code> then tracing messages are
+NOT going to get logged.</p>
+<h2 id="basic-configuration">Basic Configuration</h2>
+<p>Logging is typically configured by the app chassis at its boot. The following is a typical simple configuration with one catch-all sink and one debug sink that logs errors only:</p>
+<pre><code class="lang-CSharp">app
+{
+  name=&quot;myapp&quot; // name of the application
+  
+  paths//set all app paths here (this is not required, but recommended)
+  {
+    disk-root=$(~MY_APP_HOME) //disk root - take it from MY_APP_HOME env variable
+    log-path=$($disk-root)logs
+  }
+
+  log //this is app root logging component
+  {
+    name=&quot;applog&quot;
+    write-interval-ms=500//flush queues once 0.5 sec
+
+    sink//logs everything
+    {
+      name=&quot;default&quot; 
+      type=&quot;Azos.Log.Sinks.CSVFileSink, Azos&quot; 
+      path=$(/paths/$log-path)
+      file-name=&quot;$(/$name)-{0:yyyyMMdd}-$($name).log.csv&quot;//myapp-20181220-default.log.csv
+    }
+
+    sink//log debug details
+    {
+      name=&quot;debug&quot; 
+      min-level=Error//process errors and more severe conditions
+      type=&quot;Azos.Log.Sinks.DebugSink, Azos&quot; 
+      path==$(/paths/$log-path)
+      file-name=&quot;$(/$name)-{0:yyMMdd}-$($name).log&quot;//myapp-20181220-debug.log
+    }
+  }
+}
+</code></pre>
+<h2 id="log-sinks">Log Sinks</h2>
+<p>Log component can work with any custom <code>Sink</code>-derivative.</p>
+<p><strong>Note:</strong> sinks are synchronous, the <a href="/src/Azos/Log/LogDaemon.cs"><code>LogDaemon</code></a> is asynchronous.
+There is a <a href="/src/Azos/Log/Sinks/LogDaemonSink.cs"><code>LogDaemonSink</code></a> which is based on asynchronous
+inner daemon. The following sinks are supplied right out of the box:</p>
+<ul>
+<li><strong>CSVFileSink</strong> - dumps messages into local files in the parsable CSV file format</li>
+<li><strong>CompositeSink</strong> - creates a wrapper around multiple child sinks, used to set filtering and routing rules for sink sub-group</li>
+<li><strong>ConsoleSink</strong> - writes log messages into STDOUT/Console, with optional coloring</li>
+<li><strong>DebugSink</strong> - textual file format with detailed exception/stack tracing</li>
+<li><strong>FloodSink</strong> - pass-through composite which throttles the number of messages written per set limit (ideal for preventing EMail flooding etc.)</li>
+<li><strong>JSONSink</strong> - writes messages into text file in JSON format</li>
+<li><strong>LogDaemonSink</strong> - an asynchronous sink based on inner logger daemon instance</li>
+<li><strong>MemoryBufferSink</strong> - buffers messages in a circular buffer with ability to query the buffered content</li>
+<li><strong>NullSink</strong> - does nothing</li>
+<li><strong>SMTPSink</strong> - sends messages using SMTP protocol/server connection</li>
+<li><strong>SyslogSink</strong> - writes into *NIX syslog daemon using UDP cast</li>
+<li><strong>MongoDBSink</strong> - writes messages into MongoDB collection (NoSQL)</li>
+<li><strong>MsSqlDBSink</strong> - writes messages into Microsoft SQL RDBMS table</li>
+<li><strong>MySqlDBSink</strong> - writes messages into ORACLE MySQL RDBMS table</li>
+<li><strong>SkySink</strong> - sends log messages to the LogReceiver microservice in the Sky cluster</li>
+<li><strong>SkyZoneSink</strong> - routes log messages to parent Sky cluster zone governor</li>
+</ul>
+<hr>
+<p>Back to <a href="/src/documentation-index.md">Documentation Index</a></p>
+</article>
+          </div>
+          
+          <div class="hidden-sm col-md-2" role="complementary">
+            <div class="sideaffix">
+              <div class="contribution">
+                <ul class="nav">
+                  <li>
+                    <a href="https://github.com/azist/azos/blob/master/src/Azos/Log/readme.md/#L1" class="contribution-link">Improve this Doc</a>
+                  </li>
+                </ul>
+              </div>
+              <nav class="bs-docs-sidebar hidden-print hidden-xs hidden-sm affix" id="affix">
+              <!-- <p><a class="back-to-top" href="#top">Back to top</a><p> -->
+              </nav>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <footer>
+        <div class="grad-bottom"></div>
+        <div class="footer">
+          <div class="container">
+            <span class="pull-right">
+              <a href="#top">Back to top</a>
+            </span>
+            
+            <span>Generated by <strong>DocFX</strong></span>
+          </div>
+        </div>
+      </footer>
+    </div>
+    
+    <script type="text/javascript" src="../../../styles/docfx.vendor.js"></script>
+    <script type="text/javascript" src="../../../styles/docfx.js"></script>
+    <script type="text/javascript" src="../../../styles/main.js"></script>
+  </body>
+</html>

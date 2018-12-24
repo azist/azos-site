@@ -1,0 +1,177 @@
+﻿<!DOCTYPE html>
+<!--[if IE]><![endif]-->
+<html>
+  
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+    <title>Azos - Naming Conventions &amp; File Structure </title>
+    <meta name="viewport" content="width=device-width">
+    <meta name="title" content="Azos - Naming Conventions &amp; File Structure ">
+    <meta name="generator" content="docfx 2.40.6.0">
+    
+    <link rel="shortcut icon" href="../favicon.ico">
+    <link rel="stylesheet" href="../styles/docfx.vendor.css">
+    <link rel="stylesheet" href="../styles/docfx.css">
+    <link rel="stylesheet" href="../styles/main.css">
+    <meta property="docfx:navrel" content="../toc">
+    <meta property="docfx:tocrel" content="../toc">
+    
+    
+    
+  </head>
+  <body data-spy="scroll" data-target="#affix" data-offset="120">
+    <div id="wrapper">
+      <header>
+        
+        <nav id="autocollapse" class="navbar navbar-inverse ng-scope" role="navigation">
+          <div class="container">
+            <div class="navbar-header">
+              <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#navbar">
+                <span class="sr-only">Toggle navigation</span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+              </button>
+              
+              <a class="navbar-brand" href="../index.html">
+                <img id="logo" class="svg" src="../logo.svg" alt="">
+              </a>
+            </div>
+            <div class="collapse navbar-collapse" id="navbar">
+              <form class="navbar-form navbar-right" role="search" id="search">
+                <div class="form-group">
+                  <input type="text" class="form-control" id="search-query" placeholder="Search" autocomplete="off">
+                </div>
+              </form>
+                
+                <ul class="nav level1 navbar-nav">
+                      <li>
+                          <a href="documentation-index.html" name="" title="Azos">Azos</a>
+                      </li>
+                      <li>
+                          <a href="../out/api/Azos.html" name="" title="API Documentation">API Documentation</a>
+                      </li>
+                </ul>    </div>
+          </div>
+        </nav>
+        
+        <div class="subnav navbar navbar-default">
+          <div class="container hide-when-search" id="breadcrumb">
+            <ul class="breadcrumb">
+              <li></li>
+            </ul>
+          </div>
+        </div>
+      </header>
+      <div role="main" class="container body-content hide-when-search">
+        <div class="article row grid">
+          <div class="col-md-10">
+            <article class="content wrap" id="_content" data-uid="">
+<h1 id="azos---naming-conventions--file-structure">Azos - Naming Conventions &amp; File Structure</h1>
+
+<p>Back to <a href="/src/documentation-index.md">Documentation Index</a></p>
+<p>This document describes the source code naming conventions for the Azos project.</p>
+<h2 id="c-codebase">C# Codebase</h2>
+<h3 id="constants">Constants</h3>
+<ul>
+<li>Constants shall be in UPPER_CASE delimited by '_' underscores, e.g. &quot;MAX_TCP_DELAY_SEC&quot;</li>
+<li>The constant unit must be stated at the end of const name, e.g. &quot;SOCKET_TIMEOUT_MSEC = 780&quot;</li>
+<li>Common time units/suffixes are: _MSEC, _SEC, _HR, _MIN, _TIMES, _COUNT</li>
+<li>Complex type values used as constants via <code>static readonly</code> must stick to constant naming rules, e.g. <code>public static readonly Domain GLOBAL_DOMAIN = new Domain();</code></li>
+<li>Configuration-related constants shall start with &quot;CONFIG_&quot; prefix, e.g. &quot;CONFIG_PROVIDERS_SECTION&quot;</li>
+<li>Configuration section names shall end with &quot;_SECT&quot; or &quot;_SECTION&quot;</li>
+<li>Configuration attribute names shall end with &quot;_ATTR&quot; or &quot;_ATTRIBUTE&quot;, e.g. &quot;CONFIG_APPLIED_ATTR&quot;</li>
+</ul>
+<h3 id="public">Public</h3>
+<ul>
+<li>All public members must be in PascalCase, e.g. &quot;DatabaseConnection&quot;, &quot;UpdateRecord()&quot;, &quot;button.MaxSize = ...&quot;</li>
+<li>Public fields should not be exposed directly, shall a need arise to keep fields exposed - use PascalCase per rule above</li>
+</ul>
+<h3 id="non-public">Non-Public</h3>
+<ul>
+<li>Private members start with camelCase, e.g. <code>private void makeLogger(...)</code></li>
+<li>Protected members shall be named in PascalCase, e.g. <code>protected void DoConnect()</code></li>
+<li>Instance member fields shall start with &quot;m_&quot; prefix, e.g. <code>private int m_Width;</code></li>
+<li>Thread static member fields shall start with &quot;ts_&quot; prefix, e.g. <code>[ThreadStatic] private slot[] ts_SlotCache;</code></li>
+<li>Async Local/static member fields shall start with &quot;ats_&quot; prefix, e.g. <code>private AsyncLocal&lt;WorkContext&gt; ats_Current;</code></li>
+<li>Members with names starting with one or more underscores &quot;_&quot; signify the special behavior which shall be avoided, e.g. <code>__setParent(p)</code></li>
+</ul>
+<h3 id="protectedtemplate-methods">Protected/Template Methods</h3>
+<ul>
+<li>Template Method design pattern, the virtual methods have &quot;Do&quot; prefix, e.g. <code>public void Connect()</code> does some checks and calls internally <code>protected virtual void DoConnect()</code></li>
+</ul>
+<h3 id="file-naming">File Naming</h3>
+<ul>
+<li>Types &gt; 100 LOC should be kept in their own file - <strong>a file per type</strong></li>
+<li>It is ok to combine <strong>many related trivial</strong> types in single file (when each type does not have much code, e.g. custom exceptions)</li>
+<li>Group related interfaces (if they are short and related) under &quot;Intfs.cs&quot;</li>
+<li>For type per file: file name should equal its single type name, e.g. &quot;CustomPipe.cs&quot;</li>
+<li>For multiple types per file, use reasonable common name, e.g. &quot;Exceptions.cs&quot;, &quot;Pipes.cs&quot;, &quot;Connectivity.cs&quot; etc.</li>
+<li>Break large types <em>(there should be a good reason to have a large type)</em> into partials, naming files accordingly: &quot;Pile.Allocator.cs&quot;, &quot;Pile.Properties.cs&quot; etc.</li>
+</ul>
+<h3 id="file-structure">File Structure</h3>
+<p>The uniform file structure per every type shall be adhered to unless the described type is trivial,
+for example: there is not need to declare regions for a struct with 2 fields. <strong>Always use common sense.</strong>
+The rules below apply to the classes with &quot;body&quot; over 100+ LOC give or take. The following
+structure is good for general class readability as inter-dependent items (such as ctor, dctor, fields)
+are co-located visually.</p>
+<p>Code fold/regions:</p>
+<ul>
+<li>COPY header</li>
+<li>Usings</li>
+<li>Inner Types (if any), if longer than 50 LOC consider moving into partial class in a separate file</li>
+<li>Static methods</li>
+<li>.ctors</li>
+<li>.dctors (override Destroy() if any)</li>
+<li>Private fields/state holder (near .ctor visually = easier to read)</li>
+<li>Properties (usually reference private fields)</li>
+<li>Public methods</li>
+<li>Protected methods</li>
+<li>.pvt implementation (at the very end)</li>
+</ul>
+<hr>
+<h2 id="microsoft-code-analysis-rules">Microsoft Code Analysis Rules</h2>
+<p>Azos project <strong>follows its own standard</strong> and MSFT-defined typical .Net/FxCop rules do not apply by design.
+We tried to use FxCop and Roslyn-based CA and found that required customizations (suppression/change attributes)
+add much complexity and do not add any value for Azos which does not follow the default .Net guidelines.</p>
+<p>Back to <a href="/src/documentation-index.md">Documentation Index</a></p>
+</article>
+          </div>
+          
+          <div class="hidden-sm col-md-2" role="complementary">
+            <div class="sideaffix">
+              <div class="contribution">
+                <ul class="nav">
+                  <li>
+                    <a href="https://github.com/azist/azos/blob/master/src/naming-conventions.md/#L1" class="contribution-link">Improve this Doc</a>
+                  </li>
+                </ul>
+              </div>
+              <nav class="bs-docs-sidebar hidden-print hidden-xs hidden-sm affix" id="affix">
+              <!-- <p><a class="back-to-top" href="#top">Back to top</a><p> -->
+              </nav>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <footer>
+        <div class="grad-bottom"></div>
+        <div class="footer">
+          <div class="container">
+            <span class="pull-right">
+              <a href="#top">Back to top</a>
+            </span>
+            
+            <span>Generated by <strong>DocFX</strong></span>
+          </div>
+        </div>
+      </footer>
+    </div>
+    
+    <script type="text/javascript" src="../styles/docfx.vendor.js"></script>
+    <script type="text/javascript" src="../styles/docfx.js"></script>
+    <script type="text/javascript" src="../styles/main.js"></script>
+  </body>
+</html>

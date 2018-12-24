@@ -1,0 +1,419 @@
+﻿<!DOCTYPE html>
+<!--[if IE]><![endif]-->
+<html>
+  
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+    <title>Object Pile </title>
+    <meta name="viewport" content="width=device-width">
+    <meta name="title" content="Object Pile ">
+    <meta name="generator" content="docfx 2.40.6.0">
+    
+    <link rel="shortcut icon" href="../../../favicon.ico">
+    <link rel="stylesheet" href="../../../styles/docfx.vendor.css">
+    <link rel="stylesheet" href="../../../styles/docfx.css">
+    <link rel="stylesheet" href="../../../styles/main.css">
+    <meta property="docfx:navrel" content="../../../toc">
+    <meta property="docfx:tocrel" content="../../../toc">
+    
+    
+    
+  </head>
+  <body data-spy="scroll" data-target="#affix" data-offset="120">
+    <div id="wrapper">
+      <header>
+        
+        <nav id="autocollapse" class="navbar navbar-inverse ng-scope" role="navigation">
+          <div class="container">
+            <div class="navbar-header">
+              <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#navbar">
+                <span class="sr-only">Toggle navigation</span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+              </button>
+              
+              <a class="navbar-brand" href="../../../index.html">
+                <img id="logo" class="svg" src="../../../logo.svg" alt="">
+              </a>
+            </div>
+            <div class="collapse navbar-collapse" id="navbar">
+              <form class="navbar-form navbar-right" role="search" id="search">
+                <div class="form-group">
+                  <input type="text" class="form-control" id="search-query" placeholder="Search" autocomplete="off">
+                </div>
+              </form>
+                
+                <ul class="nav level1 navbar-nav">
+                      <li>
+                          <a href="../../documentation-index.html" name="" title="Azos">Azos</a>
+                      </li>
+                      <li>
+                          <a href="../../../out/api/Azos.html" name="" title="API Documentation">API Documentation</a>
+                      </li>
+                </ul>    </div>
+          </div>
+        </nav>
+        
+        <div class="subnav navbar navbar-default">
+          <div class="container hide-when-search" id="breadcrumb">
+            <ul class="breadcrumb">
+              <li></li>
+            </ul>
+          </div>
+        </div>
+      </header>
+      <div role="main" class="container body-content hide-when-search">
+        <div class="article row grid">
+          <div class="col-md-10">
+            <article class="content wrap" id="_content" data-uid="">
+<h1 id="object-pile">Object Pile</h1>
+
+<h2 id="overview">Overview</h2>
+<p><strong>Object Pile</strong> is a technique of utilization of large amounts of RAM - (tens to hundreds of gigabytes) in-process in server applications via <strong>regular CLR object</strong> allocations, making <strong>Big Memory</strong> applications possible on a 100% managed runtime.</p>
+<p><strong>Pile solves the notorious GC stalls problem</strong> which existed since the first days of managed memory model. Unfortunately, the GC blocking can not be eradicated completely - it is the price we have to pay for the higher-level memory model. In recent years there have been significant improvements in GC mechanisms <a href="https://blogs.msdn.microsoft.com/dotnet/2012/07/20/the-net-framework-4-5-includes-new-garbage-collector-enhancements-for-client-and-server-apps/">see this MSDN blog post</a>. The GC became less intrusive, and more informative, so  we can now know about the upcoming  blocking GC phase and try to divert traffic to a nearby server. This has helped many use-cases.</p>
+<p>There is a number of systems, however, where GC remains problematic despite all of the improvements made in the runtime. It is a customary routine to use the out-of-box/process solutions such as Redis in such systems, however keep in mind that out-of-process stores still require serialization and transportation overhead.</p>
+<p><strong>The GC starts to interfere when:</strong>
+<em>(regardless of GC mode, concurrency, notification and critical regions)</em></p>
+<ul>
+<li>A process needs to store 100s of millions of objects and have predictable SLA (response times and throughput)</li>
+<li>Long-lived objects (i.e. days) - so they all go to Gen2</li>
+<li>Objects are mutable - data changes, (not a read-only set)</li>
+<li>Locality of reference (box-bound dataset) is important</li>
+</ul>
+<p>Big Memory Pile solves the GC problems by using the transparent serialization of CLR object graphs into large byte arrays, effectively “hiding” the objects from GC’s reach. Not all object types need to be fully serialized  - strings and byte[] get written into Pile as buffers bypassing all serialization mechanisms yielding over 6 M inserts/second for a 64 char string on a 6 core box.</p>
+<p>The key benefit is the <strong>practicality</strong> of this <strong>approach which obviates the need to construct custom DTOs and other hack methods just to relieve the pressure on the GC</strong>. The real life cases have shown the overall performance of the solution to be much higher than using extrenal stores.</p>
+<h2 id="how-it-works">How it Works</h2>
+<p>Pile provides a layered design, at its core there is a <a href="PileImpl/DefaultPileBase.cs">memory allocator</a> that manages the sub-allocation within large <a href="PileImpl/DefaultPileBase.Segment.cs">&quot;segments&quot;</a> which are backed by either <a href="PileImpl/LocalMemory.cs">byte[]</a> or <a href="PileImpl/MMFMemory.cs">MemoryMappedFiles</a>.</p>
+<p>The main point of Pile is to exchange a CLR reference (which GC &quot;sees&quot;) for a <a href="PilePointer.cs">PilePointer</a> value type ( a <code>struct</code> of 3 ints which GC does not &quot;see&quot;). After you put an object into Pile, you need to keep a <code>PilePointer</code> reference (somewhere, see Cache below) which is invisible to GC and can be used later to resurrect the original object back into &quot;real&quot; CLR heap.</p>
+<p>The <code>PilePointer</code> instances can be kept in regular CLR heap, in classes like <code>List&lt;&gt;</code> or <code>Dictionary&lt;&gt;</code> as they do not create any GC scan pressure. They can also be kept in other objects stored directly in Pile, thus it is possible to create <strong>complex data structures (i.e. a PrefixTree)</strong> that contains hundreds of millions of entries <strong>completely in Pile</strong>.</p>
+<p>When you put an object into a Pile (or cache), it treats <code>byte[]</code> ans <code>string</code> primitives as <strong>directly writable into the memory</strong> buffer, - this is called a &quot;raw&quot; mode - it works <strong>much faster than arbitrary objects</strong> as it bypasses serialization completely <em>(see benchmarks below)</em>. Other objects get serialized using <a href="../../Serialization/Slim/SlimSerializer.cs">Slim serializer</a> which is very efficient at turning true CLR object graphs (even with cycles and polymorphism) into <code>byte[]</code>.</p>
+<p>Azos features <a href="ICache.cs">ICache</a> store which is based on <a href="IPile.cs">IPile</a> memory manager. This allows for storage of very many objects in named tables - out of GC's reach. Tables are akin to thread-safe named dictionary instances.</p>
+<p>Azos solution provides a full-featured in-process caching server implementation of <a href="ICache.cs">ICache</a> interface - <a href="LocalCache.cs">LocalCache</a>. As described above, the benefit of local cache is in the fact of in-process data availability - no socket connections/context switching needs to take place, consequently the performance is higher than that of an out-of-process store.</p>
+<h2 id="performance">Performance</h2>
+<p>Machine: Intel Core i7-3930K 3.2. Ghz, 6 HT Cores, 64 GB DDR3 87% free, Win 7 64bit, VS 2017, .NET 4.5, mid-grade SSD 1 TB 50% free</p>
+<hr>
+<p>Benchmarking Pile - insert <strong>200,000,000</strong> instances of <strong>string[32]</strong> each, by <strong>12 threads</strong>:</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Default Pile</th>
+<th>MMF Pile</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Duration</td>
+<td>24 sec</td>
+<td>41 sec</td>
+</tr>
+<tr>
+<td>Throughput</td>
+<td>8.3M ops/sec</td>
+<td>4.9M ops/sec</td>
+</tr>
+<tr>
+<td>RAM</td>
+<td>8.5 GB</td>
+<td>8.5 GB</td>
+</tr>
+<tr>
+<td>Full GC</td>
+<td>&lt; 8 ms</td>
+<td>&lt; 10ms</td>
+</tr>
+<tr>
+<td>Flush all data on Stop()</td>
+<td>-</td>
+<td>10 sec</td>
+</tr>
+<tr>
+<td>Load all data on Start()</td>
+<td>-</td>
+<td>48 sec @ 177 mbyte/sec</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<p>Benchmarking Pile - insert <strong>200,000,000</strong> instances of <strong>Person</strong> (class with <a href="https://github.com/azist/azos/blob/master/Source/Testing/Manual/WinFormsTest/PileForm.cs#L77-L84">7 fields</a>), by <strong>12 threads</strong>:</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Default Pile</th>
+<th>MMF Pile</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Duration</td>
+<td>85 sec</td>
+<td>101 sec</td>
+</tr>
+<tr>
+<td>Throughput</td>
+<td>2.4M ops/sec</td>
+<td>1.9M ops/sec</td>
+</tr>
+<tr>
+<td>RAM</td>
+<td>14.5 GB</td>
+<td>14.5 GB</td>
+</tr>
+<tr>
+<td>Full GC</td>
+<td>&lt; 10 ms</td>
+<td>&lt; 10ms</td>
+</tr>
+<tr>
+<td>Flush all data on Stop()</td>
+<td>-</td>
+<td>30 sec</td>
+</tr>
+<tr>
+<td>Load all data on Start()</td>
+<td>-</td>
+<td>50 sec @ 290 mbyte/sec</td>
+</tr>
+</tbody>
+</table>
+<h2 id="examples">Examples</h2>
+<p><a href="IPile.cs">IPile</a> provides an abstraction of memory managers. Azos framework provides two implementations out of the box:</p>
+<ul>
+<li><a href="DefaultPile.cs">DefaultPile</a> - stores data in byte[]</li>
+<li><a href="MMFPile.cs">MMFPile</a> - stores data in Memory Mapped Files
+Both implemntations are 100% managed code C# only, no C++ involved.</li>
+</ul>
+<p><strong>1 - Create IPile-implementing Instance</strong></p>
+<p>Depending on your objectives you can allocate Pile by hand, or use dependency injection:</p>
+<pre><code class="lang-cs">  private IPileImplemntation m_Pile;
+  .....
+  //make by hand
+  m_Pile = new DefaultPile();
+  //or
+  m_Pile = new MMFPile();
+  //or inject from config
+  //if type is not specified in config use DefaultPile as default type
+  m_Pile = FactoryUtils.MakeAndConfigure(configNode, typeof(DefaultPile));
+  .....
+  m_Pile.Start();//Start the service
+  
+  .... use pile ....
+  
+  //finalize:
+  m_Pile.WaitForCompleteStop();
+  m_Pile.Dispose();
+  //or just 1 line instead of the 2
+  DisposableObject.DisposeAndNull(ref m_Pile);
+</code></pre>
+<p>The MMFPile requires setting the <code>DataDirectoryRoot</code> to an existing folder, otherwise the MMPile would not start.</p>
+<p><strong>2 - Use Raw Memory Allocator</strong></p>
+<p>Raw memory allocator works with byte[] bypassing any serialization; this code yeilds multi-million ops/sec while inserting byte[64]:</p>
+<pre><code class="lang-cs">  var buffer = new byte[1234];
+  var ptr = pile.Put(buffer);
+  ...
+  var got = pile.Get(ptr) as byte[];
+  Assert.IsNotNull(got);
+  Assert.AreEqual(1234, got.Length);
+
+</code></pre>
+<p>we can do the same with strings, as strings use UTF8 direct encoding into memory buffer. The performance is similar.</p>
+<p><strong>3 - Working with CLR objects</strong></p>
+<p>The <strong>major business benefit of the Pile</strong> is that it allows you to work with pretty much <strong>any .NET types without special treatment</strong>. You do not need to create and maintain extra DTO copies, instead - work with your business domain.</p>
+<p>Working with regular .NET objects is no different than the example above, byte[] and strings are special types that bypass serializer altogether, whereas any other types go via SlimSerializer which is used in the special Batch mode for performance. See the <a href="IPile.cs">IPile Interface</a>.</p>
+<p>There are a few cases that Pile does not support by design:</p>
+<ul>
+<li>Classes with unmanaged handles/resources (unless they are serializable via ISerializable/[OnSer/Deser] mechanisms)</li>
+<li>Delegates/function pointers</li>
+</ul>
+<pre><code class="lang-cs">  var person = new Person{ LastName=&quot;Shoikhed&quot;, FirstName=&quot;Dodik&quot;, Age=54 };
+  var ptr = pile.Put(person);
+  ...
+  var got = pile.Get(ptr) as Person;
+  Console.WriteLine( got.LastName );//Shoikhed
+</code></pre>
+<p>An example of a linked list with in-place mutation (changing data at existing pointer):</p>
+<pre><code class="lang-cs">  public class ListNode
+  {
+    public PilePointer Previous;
+    public PilePointer Next;
+    public PilePointer Value;
+  }
+  ...
+  private IPile m_Pile;//big memory pile 
+  private PilePointer m_First;//list head
+  private PilePointer m_Last;//list tail
+  ...
+  //Append a person instance to a person linked list stored in a Pile
+  //returns last node
+  public PilePointer Append(Person person)
+  {
+    var pValue = m_Pile.Put(person);
+
+    var newLast = new ListNode{ Previous = m_Last, 
+                                Next = PilePointer.Invalid, 
+                                Value = pValue};
+    
+    var existingLast = m_Pile.Get(m_Last);
+    existingLast.Next = node;
+    m_Pile.Put(m_Last, existingLast);//in-place edit at the existing ptr m_Last
+    m_Last = m_Pile.Put(newLast);//add new node to the tail
+
+    return m_Last;
+  }                                
+</code></pre>
+<p>Keep in mind: if you serialize a huge object graph into a Pile - it will take it as long as it fits in a segment (256 Mb by default), however this is not a good and intended design of using Pile. Store smaller business- oriented objects instead. If you need to store huge graphs use <a href="ICache.cs">ICache</a> (see below).</p>
+<p><strong>4 - Caching</strong></p>
+<p>Making cache instance:</p>
+<pre><code class="lang-cs">  var cache = new LocalCache();
+  cache.Pile = new DefaultPile(cache);//Pile owned by cache
+  cache.Configure(conf);
+  cache.Start();
+     ...
+     //use
+     ...
+  //this will dispose Pile because it is owned by cache
+  DisposableObject.DisposeandNull(ref cache);
+</code></pre>
+<p>Put all tables in the <code>Durable</code> CollisionMode. In this mode no data is going to get lost. Cache tables will work just like dictionary. In the <code>Speculative</code> mode the tables skip rehashing for speed - hence some data may get lost as governed by item <code>priority</code> on <code>Put()</code>:</p>
+<pre><code class="lang-cs">  //Specify TableOptions for ALL tables
+  cache.DefaultTableOptions = new TableOptions(&quot;*&quot;) 
+  {
+    CollisionMode = CollisionMode.Durable
+  };
+</code></pre>
+<p>Create tables and put some data, note the <strong>use of comparers</strong>:</p>
+<pre><code class="lang-cs">   var tA = cache.GetOrCreateTable&lt;string&gt;(&quot;A&quot;, StringComparer.Ordinal);
+   var tB = cache.GetOrCreateTable&lt;string&gt;(&quot;B&quot;, StringComparer.OrdinalIgnoreCase);
+
+   Assert.AreEqual(PutResult.Inserted, tA.Put(&quot;key1&quot;, &quot;avalue1&quot;));
+   Assert.AreEqual(PutResult.Inserted, tA.Put(&quot;Key1&quot;, &quot;avalue2&quot;));
+   Assert.AreEqual(PutResult.Inserted, tB.Put(&quot;key1&quot;, &quot;bvalue1&quot;));
+   Assert.AreEqual(PutResult.Replaced, tB.Put(&quot;Key1&quot;, &quot;bvalue2&quot;)); 
+</code></pre>
+<p>Max age, priority and absolute expiration:</p>
+<pre><code class="lang-cs">  var tA = cache.GetOrCreateTable&lt;int&gt;(&quot;A&quot;);
+  var data = new Person{...};
+  var theEnd = App.TimeSource.UTCNow.AddHours(73);
+  ta.Put(123, myData, maxAgeSec: 78000, priority: 2, absoluteExpirationUTC: theEnd);
+  .....
+
+  //set existing object age filter
+  var newPerson = tA.Get(123, ageSec: 32) as Person;
+  if (newPerson!=null)...
+  ....
+  ta.Rejuvenate(123);//true - reset object age to zero
+  ....
+  tA.Remove(123);//true
+</code></pre>
+<p>Enumerate all entries:</p>
+<pre><code class="lang-cs"> var tA = cache.GetOrCreateTable&lt;int&gt;(&quot;A&quot;);
+ var all = tA.AsEnumerable(withValues: true);
+
+ foreach(var entry in all)
+ {
+    ...
+    entry.Key
+    entry.AgeSec
+    entry.Priority
+    entry.MaxAgeSec
+    entry.ExpirationUTC
+
+    // Returns value only if enumerator is in materializing mode, 
+    //obtained by a call to AsEnumerable(withValues: true)
+    entry.Value
+ }
+</code></pre>
+<p>Imposing limits:</p>
+<pre><code class="lang-cs">  var tA = cache.GetOrCreateTable&lt;int&gt;(&quot;A&quot;);
+  tA.Options.MaximumCapacity = 1800;
+  tA.Options.ShrinkFactor = 0.5d;
+</code></pre>
+<p>Atomic GetOrPut():</p>
+<pre><code class="lang-cs">  var tA = cache.GetOrCreateTable&lt;int&gt;(&quot;A&quot;);
+
+  tA.Put(1, &quot;value 1&quot;);
+  tA.Put(122, &quot;value 122&quot;);
+
+  PutResult? pResult;
+  var v = tA.GetOrPut(2, (t, k, _) =&gt; &quot;value &quot;+k.ToString(), null, out pResult);
+  Assert.AreEqual( &quot;value 2&quot;, v);
+  Assert.IsTrue( pResult.HasValue );
+  Assert.AreEqual( PutResult.Inserted, pResult.Value);
+</code></pre>
+<p>Configure tables individually:</p>
+<pre><code class="lang-cs">store
+{
+  default-table-options
+  {
+    initial-capacity=1000000
+    detailed-instrumentation=true
+  }
+
+  table
+  {
+    name='A'
+    minimum-capacity=800000
+    maximum-capacity=987654321
+    initial-capacity=780000
+    growth-factor=2.3
+    shrink-factor=0.55
+    load-factor-lwm=0.1
+    load-factor-hwm=0.9
+    default-max-age-sec=145
+    detailed-instrumentation=true
+  }
+
+  table
+  {
+    name='B'
+    maximum-capacity=256000
+    detailed-instrumentation=false
+  }
+}
+</code></pre>
+<h2 id="resources">Resources</h2>
+<p>The topic has been covered at length here:</p>
+<p><a href="https://www.infoq.com/articles/Big-Memory-Part-1">InfoQ -Big Memory .NET Part 1 – The Challenges in Handling 1 Billion Resident Business Objects</a></p>
+<p><a href="https://www.infoq.com/articles/Big-Memory-Part-2">InfoQ -Big Memory .NET Part 2 – The Challenges in Handling 1 Billion Resident Business Objects</a></p>
+</article>
+          </div>
+          
+          <div class="hidden-sm col-md-2" role="complementary">
+            <div class="sideaffix">
+              <div class="contribution">
+                <ul class="nav">
+                  <li>
+                    <a href="https://github.com/azist/azos/blob/master/src/Azos/Pile/readme.md/#L1" class="contribution-link">Improve this Doc</a>
+                  </li>
+                </ul>
+              </div>
+              <nav class="bs-docs-sidebar hidden-print hidden-xs hidden-sm affix" id="affix">
+              <!-- <p><a class="back-to-top" href="#top">Back to top</a><p> -->
+              </nav>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <footer>
+        <div class="grad-bottom"></div>
+        <div class="footer">
+          <div class="container">
+            <span class="pull-right">
+              <a href="#top">Back to top</a>
+            </span>
+            
+            <span>Generated by <strong>DocFX</strong></span>
+          </div>
+        </div>
+      </footer>
+    </div>
+    
+    <script type="text/javascript" src="../../../styles/docfx.vendor.js"></script>
+    <script type="text/javascript" src="../../../styles/docfx.js"></script>
+    <script type="text/javascript" src="../../../styles/main.js"></script>
+  </body>
+</html>

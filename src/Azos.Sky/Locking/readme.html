@@ -1,0 +1,224 @@
+﻿<!DOCTYPE html>
+<!--[if IE]><![endif]-->
+<html>
+  
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+    <title>Distributed Locking/Coordination </title>
+    <meta name="viewport" content="width=device-width">
+    <meta name="title" content="Distributed Locking/Coordination ">
+    <meta name="generator" content="docfx 2.40.6.0">
+    
+    <link rel="shortcut icon" href="../../../favicon.ico">
+    <link rel="stylesheet" href="../../../styles/docfx.vendor.css">
+    <link rel="stylesheet" href="../../../styles/docfx.css">
+    <link rel="stylesheet" href="../../../styles/main.css">
+    <meta property="docfx:navrel" content="../../../toc">
+    <meta property="docfx:tocrel" content="../../../toc">
+    
+    
+    
+  </head>
+  <body data-spy="scroll" data-target="#affix" data-offset="120">
+    <div id="wrapper">
+      <header>
+        
+        <nav id="autocollapse" class="navbar navbar-inverse ng-scope" role="navigation">
+          <div class="container">
+            <div class="navbar-header">
+              <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#navbar">
+                <span class="sr-only">Toggle navigation</span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+              </button>
+              
+              <a class="navbar-brand" href="../../../index.html">
+                <img id="logo" class="svg" src="../../../logo.svg" alt="">
+              </a>
+            </div>
+            <div class="collapse navbar-collapse" id="navbar">
+              <form class="navbar-form navbar-right" role="search" id="search">
+                <div class="form-group">
+                  <input type="text" class="form-control" id="search-query" placeholder="Search" autocomplete="off">
+                </div>
+              </form>
+                
+                <ul class="nav level1 navbar-nav">
+                      <li>
+                          <a href="../../documentation-index.html" name="" title="Azos">Azos</a>
+                      </li>
+                      <li>
+                          <a href="../../../out/api/Azos.html" name="" title="API Documentation">API Documentation</a>
+                      </li>
+                </ul>    </div>
+          </div>
+        </nav>
+        
+        <div class="subnav navbar navbar-default">
+          <div class="container hide-when-search" id="breadcrumb">
+            <ul class="breadcrumb">
+              <li></li>
+            </ul>
+          </div>
+        </div>
+      </header>
+      <div role="main" class="container body-content hide-when-search">
+        <div class="article row grid">
+          <div class="col-md-10">
+            <article class="content wrap" id="_content" data-uid="">
+<h1 id="distributed-lockingcoordination">Distributed Locking/Coordination</h1>
+
+<p>Distributed locking feature facilitates global synchronization at any system topography level with just a few
+lines of code. It is also used for coordination/scheduling of running processes. The data contained in the
+locking servers is considered to be ephemeral, there is no need to persist it, consequently
+<strong>Sky OS locking is a pure in-memory solution</strong> without making any on-disk copies or cross-device state synchronization.</p>
+<h2 id="probability-based-speculative-synchronization">Probability-based Speculative Synchronization</h2>
+<p><strong>The approach is purely speculative, however it works well in practice.</strong></p>
+<p>The failures are handled based on a <strong>reliability contract/expectation</strong> which is stipulated by every transaction.
+The approach is based on an efficient one-phase client-server protocol that <strong>statistically ensures</strong>
+(<em>but does not guarantee</em>) that <strong>client caller can rely on the server state</strong>. It achieves high throughput by
+<strong>completely eliminating state machine sync inter-node communication</strong> - so typical in systems that use Raft or Paxos.
+Sky locking system ensures that the client transaction/call succeeds only when the
+<strong>minimum probable server state/data currency claim is satisfied</strong>.</p>
+<p>The <strong>reliability contract</strong>(expectation) is expressed as the minimum level of TRUST that the server has to achieve
+for transaction to succeed:</p>
+<ul>
+<li><p>We measure the server system uptime (in units of time, e.g. seconds)</p>
+</li>
+<li><p>We measure the <strong>current TRUST level on the server</strong> host based on the request throughput:</p>
+<ul>
+<li>Measure the call rate &quot;norm&quot; as obtained on the particular server box.</li>
+<li>Any decline in the call rate indicates a possible networking issue which may have precluded other callers from publishing their state to the server</li>
+<li>Therefore, we <strong>assume probabilistically that the server data is not really up-to-date</strong></li>
+</ul>
+</li>
+<li><p>Every time a client makes a call to the server, it (the client) supplies the minimum required reliability guarantees: uptime (i.e in seconds) and minimum require TRUST level (i.e. 0..1.0). Shall the server not qualify per the requested guarantees, the client transaction gets denied as the server is not in the consistent state.</p>
+</li>
+</ul>
+<h3 id="call-norm---qos">Call Norm - QOS</h3>
+<p>Call norm calculation works like this. We measure the call rate in ops/sec, then feed the number into
+EMA(Exponential moving average) filter. The filter renders the &quot;average&quot; insensible to suddent &quot;spikes&quot; in traffic -
+the EMA coefficient is attuned to &quot;not feel&quot; the traffic spikes lasting for split seconds. We now apply a decay function,
+which lowers the norm with time, thus when the server becomes idle, the &quot;norm expectation&quot; diminishes. The &quot;TRUST&quot; level
+is a ratio of  <code>current_load / NORM</code> - which is basically a <strong>QOS (Quality of Service)</strong> indicator.</p>
+<p>Suppose a server handles 20 req/sec - if this rate sustains for a few seconds, the NORM jumps to around 20/sec. Now,
+something happens to the network/switch and the calls drop to 2 req/sec - the NORM is going to hang around 20 ops/sec
+for some time until it decays into the lower range, at that time the TRUST is going to be low because of the abrupt drop
+in traffic. As stated above, <strong>this is purely speculative way of</strong> assessing the server &quot;accuracy&quot;, for example - it declines
+transactions after &quot;bouts&quot; of activity caused by other services - but this is well expected and eventually the system evens-out.
+The chief benefit is the absence of complexity and latency - <strong>this solution avoids making any extra calls completely</strong>!</p>
+<blockquote>
+<p><em>Many high-scalability architectures rely on the Paxos, Vector Clocks, Raft, Byzantine Fault Tolerance and other complex
+algorithms of achieving the consensus in a distributed systems. These methods are usually very complex to implement/test
+properly and they cause extra network traffic as required by multi-phase protocols. Our approach obviates the need to execute
+multi-phase (multiple) networking calls as the currency/uptime of the system may be asserted with a single call with
+acceptable degree of probability...</em></p>
+</blockquote>
+<h2 id="locking-data-structures">Locking Data Structures</h2>
+<p>The locking/coordination structures are based on the <strong>named tables</strong> <em>(called &quot;variables&quot;)</em> with primary keys. The most typical
+locking operation is an attempt to <strong>insert a key in the table</strong> and <strong>get a key violation</strong> that would indicate that other
+process has already placed the record for that particular key. The locking server executes transactions in the caller's
+<strong>session context which has an expiration lifespan</strong>. Shall a caller never roll-back the transactions/kill session, the
+<strong>server would delete ALL variable entries from its memory upon expiration</strong>. On a typical server machine with 8 Gb of RAM and
+4 cores the locking server can support hundred of thousands of lock var entries executing over 200,000+ transactions a second.</p>
+<p>In practice these data structures are used to coordinate co-operating tasks such as map-reduce, full scans and the like where a
+swarm of hosts exchange data describing &quot;chunks&quot; of work that they perform. In reality this leads to generation of 10s-100s of
+variable entries at most, which makes this solution <strong>VERY efficient for real-time multi-worker coordination</strong>. See <a href="../Coordination">Distributed Coordination</a></p>
+<img src="/doc/img/locking-ns.svg">
+<p>All <strong>transactions are executed in a 100% serializable mode</strong> <em>(one after another)</em> within a namespace. A server supports
+multiple namespaces, in which it creates/mutates variables.</p>
+<p>A <strong>transaction is a set of operations</strong> <em>(organized as expression tree)</em> submitted to the lock server for execution.
+<strong>Either all</strong> operations succeed <strong>or none</strong> at all. The transaction operations are broadly classified as: <code>set</code>, <code>delete</code>,
+<code>read</code> and <code>logical</code> operators.</p>
+<h2 id="example">Example</h2>
+<p>Example of complex locking in a medical data acquisition system:</p>
+<pre><code class="lang-CSharp"> var mdsEnter = new LockTransaction(
+     &quot;MDS Entry for Zak Pak@'Cherry Grove'&quot;, // description  
+     &quot;Clinical&quot;, // namespace
+     0, 0.5d,    // trust level
+     LockOp.Assert( LockOp.Not(LockOp.Exists(&quot;Month-End&quot;, &quot;CGROVE-35&quot;))),
+     LockOp.Assert( LockOp.Not(LockOp.Exists(&quot;MDS-Review&quot;, &quot;CGROVE-35&quot;, &quot;R-45899&quot;))),
+     LockOp.Assert( LockOp.SetVar(&quot;MDS-Entry&quot;, &quot;CGROVE-35&quot;, &quot;R-45899&quot;, allowDuplicates: true))
+ );
+
+ var mdsReview = new LockTransaction(
+     &quot;MDS Review for Zak Pak@'Cherry Grove'&quot;, 
+     &quot;Clinical&quot;,
+     0, 0.5d,
+     LockOp.Assert( LockOp.Not(LockOp.Exists(&quot;Month-End&quot;, &quot;CGROVE-35&quot;))),
+     LockOp.Assert( LockOp.Not(LockOp.Exists(&quot;MDS-Entry&quot;, &quot;CGROVE-35&quot;, &quot;R-45899&quot;))),
+     LockOp.Assert( LockOp.SetVar(&quot;MDS-Review&quot;, &quot;CGROVE-35&quot;, &quot;R-45899&quot;, allowDuplicates: false))
+ );
+
+ var mdsReviewUnlock = new LockTransaction(
+     &quot;MDS Review for Zak Pak@'Cherry Grove' is done&quot;, 
+     &quot;Clinical&quot;, 
+     0, 0.5d,
+     LockOp.AnywayContinueAfter(LockOp.DeleteVar(&quot;MDS-Review&quot;, &quot;CGROVE-35&quot;, &quot;R-45899&quot;))
+ );
+</code></pre>
+<p>The above example is modeled in accordance with the following business case:</p>
+<ul>
+<li>There are medical facilities. <code>&quot;CGROVE-35&quot;</code> is used in the example</li>
+<li>Medical facilities have multiple patients, <code>&quot;R-45899&quot;</code> is used in the example</li>
+<li>MDS is a set of data filled for every patient.</li>
+<li>Multiple MDS Entry transactions can take place for the same patient at the same time</li>
+<li>Only one MDS Review transaction can take place for the same patient at the time</li>
+<li>Entry and Review are mutually exclusive modes</li>
+<li>None of the MDS activity can take place IF the Financial <code>MONTH-END</code> procedure takes place in the facility (regardless of patient)</li>
+</ul>
+<p>The <code>mdsEnter</code> lock is formed according to the rules, pay attention to <code>&quot;SETVAR&quot;</code> <code>allowDuplicates: true</code> for enter.
+The <code>mdsReview</code> <code>allowDuplicates: false</code> - as only one operator can take the lock.</p>
+<p>Both statements assert pre-conditions that other conflicting statuses are not set in the system.</p>
+<pre><code class="lang-CSharp">  var result = server.ExecuteLockTransaction(user1, mdsEnter);
+  Assert.AreEqual(LockStatus.TransactionOK, result.Status);
+
+  result = server.ExecuteLockTransaction(user2, mdsEnter);
+  Assert.AreEqual(LockStatus.TransactionOK, result.Status);
+
+  result = server.ExecuteLockTransaction(user3, mdsReview); 
+  //Can't start review because someone else is entering
+  Assert.AreEqual(LockStatus.TransactionError, result.Status);
+  Assert.AreEqual(&quot;1:/AssertOp/&quot;, result.FailedStatement);
+</code></pre>
+</article>
+          </div>
+          
+          <div class="hidden-sm col-md-2" role="complementary">
+            <div class="sideaffix">
+              <div class="contribution">
+                <ul class="nav">
+                  <li>
+                    <a href="https://github.com/azist/azos/blob/master/src/Azos.Sky/Locking/readme.md/#L1" class="contribution-link">Improve this Doc</a>
+                  </li>
+                </ul>
+              </div>
+              <nav class="bs-docs-sidebar hidden-print hidden-xs hidden-sm affix" id="affix">
+              <!-- <p><a class="back-to-top" href="#top">Back to top</a><p> -->
+              </nav>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <footer>
+        <div class="grad-bottom"></div>
+        <div class="footer">
+          <div class="container">
+            <span class="pull-right">
+              <a href="#top">Back to top</a>
+            </span>
+            
+            <span>Generated by <strong>DocFX</strong></span>
+          </div>
+        </div>
+      </footer>
+    </div>
+    
+    <script type="text/javascript" src="../../../styles/docfx.vendor.js"></script>
+    <script type="text/javascript" src="../../../styles/docfx.js"></script>
+    <script type="text/javascript" src="../../../styles/main.js"></script>
+  </body>
+</html>

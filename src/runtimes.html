@@ -1,0 +1,242 @@
+﻿<!DOCTYPE html>
+<!--[if IE]><![endif]-->
+<html>
+  
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+    <title>Runtimes and Platform Abstraction </title>
+    <meta name="viewport" content="width=device-width">
+    <meta name="title" content="Runtimes and Platform Abstraction ">
+    <meta name="generator" content="docfx 2.40.6.0">
+    
+    <link rel="shortcut icon" href="../favicon.ico">
+    <link rel="stylesheet" href="../styles/docfx.vendor.css">
+    <link rel="stylesheet" href="../styles/docfx.css">
+    <link rel="stylesheet" href="../styles/main.css">
+    <meta property="docfx:navrel" content="../toc">
+    <meta property="docfx:tocrel" content="../toc">
+    
+    
+    
+  </head>
+  <body data-spy="scroll" data-target="#affix" data-offset="120">
+    <div id="wrapper">
+      <header>
+        
+        <nav id="autocollapse" class="navbar navbar-inverse ng-scope" role="navigation">
+          <div class="container">
+            <div class="navbar-header">
+              <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#navbar">
+                <span class="sr-only">Toggle navigation</span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+              </button>
+              
+              <a class="navbar-brand" href="../index.html">
+                <img id="logo" class="svg" src="../logo.svg" alt="">
+              </a>
+            </div>
+            <div class="collapse navbar-collapse" id="navbar">
+              <form class="navbar-form navbar-right" role="search" id="search">
+                <div class="form-group">
+                  <input type="text" class="form-control" id="search-query" placeholder="Search" autocomplete="off">
+                </div>
+              </form>
+                
+                <ul class="nav level1 navbar-nav">
+                      <li>
+                          <a href="documentation-index.html" name="" title="Azos">Azos</a>
+                      </li>
+                      <li>
+                          <a href="../out/api/Azos.html" name="" title="API Documentation">API Documentation</a>
+                      </li>
+                </ul>    </div>
+          </div>
+        </nav>
+        
+        <div class="subnav navbar navbar-default">
+          <div class="container hide-when-search" id="breadcrumb">
+            <ul class="breadcrumb">
+              <li></li>
+            </ul>
+          </div>
+        </div>
+      </header>
+      <div role="main" class="container body-content hide-when-search">
+        <div class="article row grid">
+          <div class="col-md-10">
+            <article class="content wrap" id="_content" data-uid="">
+<h1 id="runtimes-and-platform-abstraction">Runtimes and Platform Abstraction</h1>
+
+<p>Back to <a href="/src/documentation-index.md">Documentation Index</a></p>
+<p>See also:</p>
+<ul>
+<li><a href="/src/Azos/Platform/Abstraction">Platform Abstraction</a></li>
+</ul>
+<h2 id="targeted-runtimes">Targeted Runtimes</h2>
+<p>All system code in <strong>Azos is built against .NET Standard</strong> so it can
+target different runtimes.</p>
+<p>Azos supports two CLR (Common Language Runtime) runtimes by default:</p>
+<ul>
+<li><strong>.Net Framework 4.7.1 and above</strong> - runs on Windows</li>
+<li><strong>.Net Core 2.0 and above</strong> - runs on Windows, Linux and Mac</li>
+</ul>
+<p>It is possible to run Azos applications on other OSs that support .Net Core,
+however we have not &quot;officially&quot; try it.</p>
+<p>System code resides in <code>Azos.*</code> assemblies adheres to .Net assembly naming using
+<code>PascalCase</code>, e.g. <code>Azos.dll</code>, <code>Azos.Web.dll</code>. The fact that the output files are called <code>*.dll</code>
+does not mean that they are Windows-specific as they contain CLR metadata and CIL - please see <a href="https://docs.microsoft.com/en-us/dotnet/">.Net Framework and
+.Net Core documentation</a>.</p>
+<h2 id="entry-points">Entry Points</h2>
+<p>Azos builds entry points for every specific runtime. The following shows the solution structure:</p>
+<pre><code> src/
+    /runtimes
+        /core
+           Azos.Platform.NetCore20
+           trun (NetSdk Csproj)
+        /netf
+           Azos.Platform.NetFramework
+           Azos.WinForms
+           trun (Classic .Net Csproj)
+ Azos/
+   ....
+    Class.cs
+   ....
+ Azos.Tools/
+   ....
+    trun/
+       ProgramBody.cs
+   .....
+ Azos.sln
+</code></pre>
+<p>The per-platform code resides under <code>/src/runtimes/&lt;runtime&gt;</code> directory. Note how both runtimes have a test runner console tool
+<em>(used just as an example)</em>. The body of <code>trun</code> tool resides in <code>Azos.Tools.trun.ProgramBody.cs</code> which is a platform-
+independent code in a .Net Standard library.</p>
+<p>Note that <code>Azos.WinForms</code> library is under <code>/netf</code> runtime only, there is no counterpart under <code>/core</code> - this is because
+WinForms legacy technology is not supported/needed on .Net Core.</p>
+<p>The build output is directed into <code>/out</code> directory co-located with <code>/src</code> (cloaked from source control). All
+build artifacts are emitted in that folder: <code>/out/&lt;Configuration&gt;/&lt;runtime&gt;</code> as depicted:</p>
+<pre><code> out/
+    Debug/
+       run-netf
+         trun.exe
+         Azos.dll
+         Azos.Tools.dll
+        ....
+       run-core
+         trun.dll
+         Azos.dll
+         Azos.Tools.dll
+        ....
+    Release/
+       ..... similar structure ....
+</code></pre>
+<p>To run tests using <code>trun</code> cli <em>(just as an example)</em> you would need to go into corresponding runtime directory
+and invoke the executable entry point:</p>
+<pre><code class="lang-batch">C:\azos\out\Debug\run-core&gt; dotnet trun.dll -?
+.....
+C:\azos\out\Debug\run-core&gt; cd ..\run-netf
+C:\azos\out\Debug\run-netf&gt; trun.exe -?
+.....
+</code></pre>
+<h2 id="memory-considerations">Memory Considerations</h2>
+<p><strong>Azos is built for 64-bit operation on servers</strong>, while it is possible to build the code
+for 32 bit apps, we do not officially support 32 bit code.</p>
+<p><strong>Note</strong>: <em>Always set Garbage Collector mode to &quot;SERVER&quot; in your process config files</em></p>
+<p>The snippet below sets the Server GC mode on .Net Core project:</p>
+<pre><code class="lang-xml">...
+  &lt;PropertyGroup&gt;
+    &lt;OutputType&gt;Exe&lt;/OutputType&gt;
+    &lt;TargetFramework&gt;netcoreapp2.0&lt;/TargetFramework&gt;
+    &lt;ServerGarbageCollection&gt;true&lt;/ServerGarbageCollection&gt;
+  &lt;/PropertyGroup&gt;
+...
+</code></pre>
+<p>Use the following code in <code>App.config</code> for .Net Framework executable files:</p>
+<pre><code class="lang-xml">&lt;?xml version=&quot;1.0&quot; encoding=&quot;utf-8&quot;?&gt;
+&lt;configuration&gt;
+  &lt;runtime&gt;
+    &lt;gcServer enabled=&quot;true&quot;/&gt;
+  &lt;/runtime&gt;
+  &lt;startup&gt;
+    &lt;supportedRuntime version=&quot;v4.0&quot; sku=&quot;.NETFramework,Version=v4.7.1&quot;/&gt;
+  &lt;/startup&gt;
+&lt;/configuration&gt;
+</code></pre>
+<h2 id="platform-abstraction-layer">Platform Abstraction Layer</h2>
+<p>Azos is built on Net Standards, therefore <strong>it can not use some platform-specific functions</strong> <em>(e.g. compress graphical images)</em> directly.
+Instead, Azos <strong>delegates</strong> the work to PAL = <strong>Platform Abstraction Layer</strong>.</p>
+<p>PAL <em>(100% managed code)</em> is a central interface hub containing references to platform-specific areas:</p>
+<ul>
+<li>Images + Compression</li>
+<li>Drawing / 2D Graphics</li>
+<li>Machine information: performance counters, CPU, RAM etc...</li>
+<li>FS Access rights</li>
+<li>C# runtime code compilation</li>
+</ul>
+<p>When a particular EXE (entry point) is built, it is <strong>statically linked against some particular runtime</strong>, e.g. .NET Framework or .NET Core.
+PlatformAbstractionLayer moves the details specific to the runtime into separate module which is injected at the application entry-point.
+The ideology of Azos (and any other well-architected software) recommends to keep the entry modules (exes) as small as possible, having
+all of the business logic in the class libraries built against Azos in a platform-agnostic way (.NET standard).
+This way all of the code can be easily ported to the different platform/runtime</p>
+<p>Example of the aforementioned <code>trun</code> CLI tool built against the full .NET Framework:</p>
+<pre><code class="lang-CSharp">//statically reference Azos.Platform.NetFramework.dll (which uses full .net framework)
+
+class Program
+{
+  static void Main(string[] args)
+  {
+    new Azos.Platform.Abstraction.NetFramework.DotNetFrameworkRuntime();
+    Azos.Tools.Trun.ProgramBody.Main(args);
+  }
+}
+</code></pre>
+<p>See <a href="/src/Azos/Platform/Abstraction">Platform Abstraction</a> for more details</p>
+<h2 id="full-alt-stack">Full Alt Stack</h2>
+<p>Since <strong>Azos is a full-stack solution</strong>, it <strong>does not use any 3rd-party libraries</strong> besides
+standard BCL and Microsoft-supplied ones (e.g. <code>Microsoft.CSharp.dll</code>). This makes <strong>Azos an alt-stack
+choice</strong> for working with .Net. Azos provides all of the core services by itself - something which is
+usually accomplished using myriads of 3rd party disjoint systems.</p>
+<hr>
+<p>Back to <a href="/src/documentation-index.md">Documentation Index</a></p>
+</article>
+          </div>
+          
+          <div class="hidden-sm col-md-2" role="complementary">
+            <div class="sideaffix">
+              <div class="contribution">
+                <ul class="nav">
+                  <li>
+                    <a href="https://github.com/azist/azos/blob/master/src/runtimes.md/#L1" class="contribution-link">Improve this Doc</a>
+                  </li>
+                </ul>
+              </div>
+              <nav class="bs-docs-sidebar hidden-print hidden-xs hidden-sm affix" id="affix">
+              <!-- <p><a class="back-to-top" href="#top">Back to top</a><p> -->
+              </nav>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <footer>
+        <div class="grad-bottom"></div>
+        <div class="footer">
+          <div class="container">
+            <span class="pull-right">
+              <a href="#top">Back to top</a>
+            </span>
+            
+            <span>Generated by <strong>DocFX</strong></span>
+          </div>
+        </div>
+      </footer>
+    </div>
+    
+    <script type="text/javascript" src="../styles/docfx.vendor.js"></script>
+    <script type="text/javascript" src="../styles/docfx.js"></script>
+    <script type="text/javascript" src="../styles/main.js"></script>
+  </body>
+</html>

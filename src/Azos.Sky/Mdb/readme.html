@@ -1,0 +1,190 @@
+﻿<!DOCTYPE html>
+<!--[if IE]><![endif]-->
+<html>
+  
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+    <title>MDB - Multi Database Router </title>
+    <meta name="viewport" content="width=device-width">
+    <meta name="title" content="MDB - Multi Database Router ">
+    <meta name="generator" content="docfx 2.40.6.0">
+    
+    <link rel="shortcut icon" href="../../../favicon.ico">
+    <link rel="stylesheet" href="../../../styles/docfx.vendor.css">
+    <link rel="stylesheet" href="../../../styles/docfx.css">
+    <link rel="stylesheet" href="../../../styles/main.css">
+    <meta property="docfx:navrel" content="../../../toc">
+    <meta property="docfx:tocrel" content="../../../toc">
+    
+    
+    
+  </head>
+  <body data-spy="scroll" data-target="#affix" data-offset="120">
+    <div id="wrapper">
+      <header>
+        
+        <nav id="autocollapse" class="navbar navbar-inverse ng-scope" role="navigation">
+          <div class="container">
+            <div class="navbar-header">
+              <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#navbar">
+                <span class="sr-only">Toggle navigation</span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+              </button>
+              
+              <a class="navbar-brand" href="../../../index.html">
+                <img id="logo" class="svg" src="../../../logo.svg" alt="">
+              </a>
+            </div>
+            <div class="collapse navbar-collapse" id="navbar">
+              <form class="navbar-form navbar-right" role="search" id="search">
+                <div class="form-group">
+                  <input type="text" class="form-control" id="search-query" placeholder="Search" autocomplete="off">
+                </div>
+              </form>
+                
+                <ul class="nav level1 navbar-nav">
+                      <li>
+                          <a href="../../documentation-index.html" name="" title="Azos">Azos</a>
+                      </li>
+                      <li>
+                          <a href="../../../out/api/Azos.html" name="" title="API Documentation">API Documentation</a>
+                      </li>
+                </ul>    </div>
+          </div>
+        </nav>
+        
+        <div class="subnav navbar navbar-default">
+          <div class="container hide-when-search" id="breadcrumb">
+            <ul class="breadcrumb">
+              <li></li>
+            </ul>
+          </div>
+        </div>
+      </header>
+      <div role="main" class="container body-content hide-when-search">
+        <div class="article row grid">
+          <div class="col-md-10">
+            <article class="content wrap" id="_content" data-uid="">
+<h1 id="mdb---multi-database-router">MDB - Multi Database Router</h1>
+
+<p>MDB is for storing (usually) related/relational data organized by sharding ID in &quot;briefcases&quot; within areas.
+<em>(we can also store documents as easily using Mongo Db</em>).</p>
+<p>The data is organized in areas. Areas are Named.
+The purpose of each area is to provide the best possible load accommodation for particular data type.
+For example: User area holds user-related data (profile, transactions, balances) for users partitioning it on GDID.
+This approach allows to use traditional query methods within one &quot;briefcase&quot; of data.</p>
+<p>Within an area, a &quot;briefcase&quot; is a segment of relational tables that is keyed on the same partition GDID - a &quot;briefcase key&quot;.
+It represents a logical set of data needed for business logic.
+For example: User briefcase stores all user-related tables on the same RDBMS server.
+This allows for quick traversal/joins of data within the briefcase identified by GDID ID.
+Briefcases are not physical entities, they are logical sets of rows in various tables within the same DB server.
+An area may hold MORE THAN ONE type of briefcases (as its name should reflect).</p>
+<p>Internally, briefcases are usually hierarchical structures of tables. For example:</p>
+<pre><code> - User
+   - Pay Accounts
+     - Account Authorization History
+   - Addresses
+   - Orders
+     - Order Line-items
+   - Transactions
+   - Balances
+</code></pre>
+<p>All areas except &quot;CENTRAL&quot; store data in partitions that are range-based on GDID, then within a partition data is sharded among the
+shard count.
+The SHARD COUNT within partition is normally immutable (pre-arranged).
+If the shard count needs to change within a partition, briefcase resharding within that partition has to be done (see below).</p>
+<pre><code>Area &quot;User&quot;
++------------------+   +-----------------------------+        +-----------------------------+
++ Partition 1 	   +   + Partition 2                 +        + Partition X                 +
++ Range Start 0	   +   + Range Start 250000          +        + Range Start &gt;250000         +
++--------+---------+   +--------+----------+---------+ . . .  +--------+----------+---------+
++Shard 1 | Shard 2 +   +Shard 1 | Shard 2  | Shard 3 |        +Shard 1 |   ...    | Shard N |
++--------+---------+   +--------+----------+---------+        +--------+----------+---------+
+</code></pre>
+<p>Partitioning IDs are always GDID (global unique identifier), not strings; this is because
+MDB uses range partitioning in all but CENTRAL area.</p>
+<p>CENTRAL Area DOES NOT use any partitioning. It is a special Area used for global definitions/indexing.
+It still uses sub-shards. CENTRAL Area is the only area that has SHARDING KEY: object (not gdid), as it allows to lookup
+by strings and other shard keys.</p>
+<p>When a STRING ID (i.e. user email) needs to be mapped to GDID (i.e. user briefcase GDID), the CENTRAL Area should be queried (index tables).
+Most of the data in Central area is static, so it gets aggressively cached.</p>
+<p>All other areas use Range partitioning. Range partitioning works as follows:
+All sharding IDS are monotonically-increasing GDIDs (with authority bits discarded: Era 32bit + Counter 60 bit)
+Sharding GDID is requested. The system needs to locate a shard that holds that data within the area.
+System looks-up the system config that maps GDID start {Era, Counter} to the partition.</p>
+<p>The partition is further broken-down by shards, this is needed so that write/read load of current
+data does not create hotspot on one server. The Number of shards within partition is not expected to be changed
+(or briefcase data rebalancing would need to take place with 3rd party tools, see below).</p>
+<p>Benefits:</p>
+<ol>
+<li>Data does not need to be physically moved between partitions on partition addition. Once a partition has been assigned, data remains there</li>
+<li>Quick mapping of GDID_SHARDING_ID -&gt; physical server</li>
+<li>Ability to gradually increase capacity: start business with one partition, assess the load and add more partitions when necessary</li>
+<li>Fast in-area queries - as data is physically pre-grouped in &quot;briefcases&quot; by GDID_SHARDING_ID (all briefcase-related data is on the same physical server)</li>
+</ol>
+<p>Drawbacks:</p>
+<ol>
+<li>If &quot;older GDID&quot; data gets stale*, the older shards experience less load</li>
+<li>Possibly uneven distribution of &quot;newer/hotter&quot; data goes towards the end</li>
+<li>Theoretically not 100% even distribution as some USERS(or other briefcases) may have more
+data than others, 100 users on one server!=100 users on another. Because of it, MORE CAPACITY has to be reserved in partition.
+Mitigation may be: scale particular server up (faster CPU+more ram/disk)</li>
+</ol>
+<ul>
+<li>
+<ul>
+<li>keep in mind, &quot;older&quot; users still have new transactions comming into their shard,
+as transactions/balances are co-located with user</li>
+</ul>
+</li>
+</ul>
+<h2 id="futuredata-supportarchiving-tasks">Future/Data Support/Archiving tasks</h2>
+<p>With time (after X years), some data may get deleted from the MDB. Older customer data may get archived and moved-out into a long-term storage.
+Instead of adding new partitions, we can set a GDID brakepoint (one number) after which the range partitioning tables will start over - that is
+the GDIDs below the brakepoint will get routed according to the first range set, after brakepoint, to another.. and so on</p>
+<h2 id="how-to-re-shard-the-data-whithin-the-partitionbriefcase-move">How to re-shard the data whithin the partition	(briefcase move)</h2>
+<p>The business logic-aware tool(script/utility) would need to be constructed to move briefcases (all logically-grouped data) between DB servers.
+It is important to note that AUTO-INC ids SHOULD NOT be used because of possible collisions, instead GDIDs need to be used throughout
+all tables</p>
+</article>
+          </div>
+          
+          <div class="hidden-sm col-md-2" role="complementary">
+            <div class="sideaffix">
+              <div class="contribution">
+                <ul class="nav">
+                  <li>
+                    <a href="https://github.com/azist/azos/blob/master/src/Azos.Sky/Mdb/readme.md/#L1" class="contribution-link">Improve this Doc</a>
+                  </li>
+                </ul>
+              </div>
+              <nav class="bs-docs-sidebar hidden-print hidden-xs hidden-sm affix" id="affix">
+              <!-- <p><a class="back-to-top" href="#top">Back to top</a><p> -->
+              </nav>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <footer>
+        <div class="grad-bottom"></div>
+        <div class="footer">
+          <div class="container">
+            <span class="pull-right">
+              <a href="#top">Back to top</a>
+            </span>
+            
+            <span>Generated by <strong>DocFX</strong></span>
+          </div>
+        </div>
+      </footer>
+    </div>
+    
+    <script type="text/javascript" src="../../../styles/docfx.vendor.js"></script>
+    <script type="text/javascript" src="../../../styles/docfx.js"></script>
+    <script type="text/javascript" src="../../../styles/main.js"></script>
+  </body>
+</html>

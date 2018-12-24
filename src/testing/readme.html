@@ -1,0 +1,184 @@
+﻿<!DOCTYPE html>
+<!--[if IE]><![endif]-->
+<html>
+  
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+    <title>Framework Testing </title>
+    <meta name="viewport" content="width=device-width">
+    <meta name="title" content="Framework Testing ">
+    <meta name="generator" content="docfx 2.40.6.0">
+    
+    <link rel="shortcut icon" href="../../favicon.ico">
+    <link rel="stylesheet" href="../../styles/docfx.vendor.css">
+    <link rel="stylesheet" href="../../styles/docfx.css">
+    <link rel="stylesheet" href="../../styles/main.css">
+    <meta property="docfx:navrel" content="../../toc">
+    <meta property="docfx:tocrel" content="../../toc">
+    
+    
+    
+  </head>
+  <body data-spy="scroll" data-target="#affix" data-offset="120">
+    <div id="wrapper">
+      <header>
+        
+        <nav id="autocollapse" class="navbar navbar-inverse ng-scope" role="navigation">
+          <div class="container">
+            <div class="navbar-header">
+              <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#navbar">
+                <span class="sr-only">Toggle navigation</span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+              </button>
+              
+              <a class="navbar-brand" href="../../index.html">
+                <img id="logo" class="svg" src="../../logo.svg" alt="">
+              </a>
+            </div>
+            <div class="collapse navbar-collapse" id="navbar">
+              <form class="navbar-form navbar-right" role="search" id="search">
+                <div class="form-group">
+                  <input type="text" class="form-control" id="search-query" placeholder="Search" autocomplete="off">
+                </div>
+              </form>
+                
+                <ul class="nav level1 navbar-nav">
+                      <li>
+                          <a href="../documentation-index.html" name="" title="Azos">Azos</a>
+                      </li>
+                      <li>
+                          <a href="../../out/api/Azos.html" name="" title="API Documentation">API Documentation</a>
+                      </li>
+                </ul>    </div>
+          </div>
+        </nav>
+        
+        <div class="subnav navbar navbar-default">
+          <div class="container hide-when-search" id="breadcrumb">
+            <ul class="breadcrumb">
+              <li></li>
+            </ul>
+          </div>
+        </div>
+      </header>
+      <div role="main" class="container body-content hide-when-search">
+        <div class="article row grid">
+          <div class="col-md-10">
+            <article class="content wrap" id="_content" data-uid="">
+<h1 id="framework-testing">Framework Testing</h1>
+
+<p>Back to <a href="/src/documentation-index.md">Documentation Index</a></p>
+<p>This directory contains testing code. Azos testing code is written using <a href="/src/Azos/Scripting">Azos.Scripting</a> and
+<a href="/src/Azos/Aver.cs">Aver.cs</a> &quot;assertion&quot; library. The testing philosophy is described here. TBD</p>
+<p>There are <strong>three test &quot;tiers&quot;</strong> used in Azos framework:</p>
+<ol>
+<li><a href="Azos.Tests.Nub">Azos.Tests.Nub</a> - tests the very base &quot;crux&quot; of the framework - the functionality
+which everything else is based on (config, app chassis, modules etc.). The nub tests must be quick to
+execute and they are used for basic regression testing while developing Azos itself. Nub testing does not
+(and it should not) provide full comprehensive coverage of functionality, rather it is purposed to
+<strong>quickly ascertain the correctness</strong> of framework &quot;very core&quot; (hence the name)</li>
+<li><a href="Azos.Tests.Unit">Azos.Tests.Unit</a> - covers the Azos framework as a whole with unit tests some of which
+may take significant amount of time to execute. The tests are categorized using the &quot;base&quot; identifier to further
+narrow the testing scope</li>
+<li><a href="Azos.Tests.Integration">Azos.Tests.Integration</a> - tests various components together, requiring external services
+(such as local DB server instance) for some tests. These tests are usually long running and concentrate on inter-service
+consumption and multi-threading</li>
+</ol>
+<hr>
+<h3 id="quick-cheats">Quick cheats:</h3>
+<h5 id="run-tests-using-cli">Run Tests using CLI</h5>
+<p>Run nub tests from console on <strong>Linux</strong> or <strong>Mac</strong> (can only use <code>run-core</code> runtime):</p>
+<pre><code class="lang-batch">~/azos/out/Debug/run-core
+$ dotnet trun.dll Azos.Tests.Nub.dll
+</code></pre>
+<p>Run nub tests on <strong>Windows</strong> using <code>run-netf</code> or <code>run-core</code> runtimes:</p>
+<pre><code class="lang-batch">C:\azos\out\Debug\run-netf&gt; trun Azos.Tests.Nub.dll
+C:\azos\out\Debug\run-core&gt; dotnet trun.dll Azos.Tests.Nub.dll
+</code></pre>
+<p>The core vs. net test runner command args syntax is the same.</p>
+<h5 id="get-cli-help">Get CLI Help</h5>
+<pre><code class="lang-batch">$ dotnet trun.dll -?
+C:\azos\out\Debug\run-netf&gt; trun -?
+C:\azos\out\Debug\run-core&gt; dotnet trun.dll -?
+</code></pre>
+<h5 id="run-specific-tests">Run Specific Tests</h5>
+<p>Use <code>-r</code> switch to configure test script runner with pattern search expressions.</p>
+<p>Search by namespace names:</p>
+<pre><code class="lang-batch">~/azos/out/Debug/run-core
+$ dotnet trun.dll Azos.Tests.Nub.dll -r namespaces=RunnerTests.Inject*;MyLogic.DB.*
+</code></pre>
+<p>You can combine pattern filters using <code>?</code> and <code>*</code>:</p>
+<pre><code class="lang-batch">~/azos/out/Debug/run-core
+$ dotnet trun.dll Azos.Tests.Nub.dll -r namespaces=RunnerTests.Inject* methods=*Json_Read?-* names=case?
+</code></pre>
+<p>Specific method names:</p>
+<pre><code class="lang-batch">~/azos/out/Debug/run-core
+$ dotnet trun.dll Azos.Tests.Nub.dll -r methods=*AsJson*
+</code></pre>
+<p>Use <code>names</code> parameter to invoke explicitly-named test cases:</p>
+<pre><code class="lang-batch">~/azos/out/Debug/run-core
+$ dotnet trun.dll MyTesting.dll -r names=MySpecialTest
+</code></pre>
+<p>the use the name in code:</p>
+<pre><code class="lang-CSharp">[Run(&quot;!MySpecialTest&quot;...]//note the use of &quot;!&quot; - unless you pass the
+                         //test name explicitly it will not auto run
+public void Special()
+{
+ ...Aver.IsTrue(...)...
+}
+</code></pre>
+<h5 id="emulate-tests">Emulate Tests</h5>
+<p>This is needed to see what tests will run, but don't run them. Emulation helps identify the test
+configuration/setup issues.</p>
+<pre><code class="lang-batch">~/azos/out/Debug/run-core
+$ dotnet trun.dll Azos.Tests.Integration.dll -r emulate=true
+</code></pre>
+<h5 id="save-results-into-file">Save Results into File</h5>
+<p>Pass <code>out=&lt;file&gt;.xml|json|laconf</code> specifier to the <code>-host</code> switch:</p>
+<pre><code class="lang-batch">~/azos/out/Debug/run-core
+$ dotnet trun.dll Azos.Tests.Integration.dll -host out=&quot;~/azos/out/results.laconf&quot;
+</code></pre>
+<hr>
+<p>Back to <a href="/src/documentation-index.md">Documentation Index</a></p>
+</article>
+          </div>
+          
+          <div class="hidden-sm col-md-2" role="complementary">
+            <div class="sideaffix">
+              <div class="contribution">
+                <ul class="nav">
+                  <li>
+                    <a href="https://github.com/azist/azos/blob/master/src/testing/readme.md/#L1" class="contribution-link">Improve this Doc</a>
+                  </li>
+                </ul>
+              </div>
+              <nav class="bs-docs-sidebar hidden-print hidden-xs hidden-sm affix" id="affix">
+              <!-- <p><a class="back-to-top" href="#top">Back to top</a><p> -->
+              </nav>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <footer>
+        <div class="grad-bottom"></div>
+        <div class="footer">
+          <div class="container">
+            <span class="pull-right">
+              <a href="#top">Back to top</a>
+            </span>
+            
+            <span>Generated by <strong>DocFX</strong></span>
+          </div>
+        </div>
+      </footer>
+    </div>
+    
+    <script type="text/javascript" src="../../styles/docfx.vendor.js"></script>
+    <script type="text/javascript" src="../../styles/docfx.js"></script>
+    <script type="text/javascript" src="../../styles/main.js"></script>
+  </body>
+</html>

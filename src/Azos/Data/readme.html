@@ -1,0 +1,327 @@
+﻿<!DOCTYPE html>
+<!--[if IE]><![endif]-->
+<html>
+  
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+    <title>Azos Data Access </title>
+    <meta name="viewport" content="width=device-width">
+    <meta name="title" content="Azos Data Access ">
+    <meta name="generator" content="docfx 2.40.6.0">
+    
+    <link rel="shortcut icon" href="../../../favicon.ico">
+    <link rel="stylesheet" href="../../../styles/docfx.vendor.css">
+    <link rel="stylesheet" href="../../../styles/docfx.css">
+    <link rel="stylesheet" href="../../../styles/main.css">
+    <meta property="docfx:navrel" content="../../../toc">
+    <meta property="docfx:tocrel" content="../../../toc">
+    
+    
+    
+  </head>
+  <body data-spy="scroll" data-target="#affix" data-offset="120">
+    <div id="wrapper">
+      <header>
+        
+        <nav id="autocollapse" class="navbar navbar-inverse ng-scope" role="navigation">
+          <div class="container">
+            <div class="navbar-header">
+              <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#navbar">
+                <span class="sr-only">Toggle navigation</span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+              </button>
+              
+              <a class="navbar-brand" href="../../../index.html">
+                <img id="logo" class="svg" src="../../../logo.svg" alt="">
+              </a>
+            </div>
+            <div class="collapse navbar-collapse" id="navbar">
+              <form class="navbar-form navbar-right" role="search" id="search">
+                <div class="form-group">
+                  <input type="text" class="form-control" id="search-query" placeholder="Search" autocomplete="off">
+                </div>
+              </form>
+                
+                <ul class="nav level1 navbar-nav">
+                      <li>
+                          <a href="../../documentation-index.html" name="" title="Azos">Azos</a>
+                      </li>
+                      <li>
+                          <a href="../../../out/api/Azos.html" name="" title="API Documentation">API Documentation</a>
+                      </li>
+                </ul>    </div>
+          </div>
+        </nav>
+        
+        <div class="subnav navbar navbar-default">
+          <div class="container hide-when-search" id="breadcrumb">
+            <ul class="breadcrumb">
+              <li></li>
+            </ul>
+          </div>
+        </div>
+      </header>
+      <div role="main" class="container body-content hide-when-search">
+        <div class="article row grid">
+          <div class="col-md-10">
+            <article class="content wrap" id="_content" data-uid="">
+<h1 id="azos-data-access">Azos Data Access</h1>
+
+<p>Back to <a href="/src/documentation-index.md">Documentation Index</a></p>
+<p>This section described accessing/working with Data in Azos.</p>
+<p>See also:</p>
+<ul>
+<li><a href="metadata.html">Data Schema</a></li>
+<li><a href="domains.html">Data Validation with Domains</a></li>
+<li><a href="modeling.html">Data Modeling</a></li>
+</ul>
+<h2 id="overview">Overview</h2>
+<p>Azos takes a hybrid approach to data access. It is not a strict ORM or strict CRUD, rather a
+combination of different techniques that are most beneficial for business applications. The ORM
+part may be better described as <strong>just OM (Object Mapping)</strong> without the [R]elational part - this is because
+it is necessary to support <strong>non-relational/RDBMS</strong> data sources (e.g. services, NoSql, BigData etc.) as easily
+as the traditional ones.</p>
+<p>Azos data modeling introduced with <strong>schema/data documents</strong> provides foundational metadata for serialization
+(including version-tolerant)(JSON/BSON/Arow), inter-process communication with Glue and Sky net (Todo, Processes) and
+general per-document/per-field metadata for <a href="https://en.wikipedia.org/wiki/Class_invariant">business domain validation rules / class invariants</a>.</p>
+<p>Azos data access was designed with the following data-store types in mind:</p>
+<ul>
+<li><strong>Distributed/Api</strong> sources (i.e. various web services/API sources)</li>
+<li><strong>BigData</strong> (e.g. Hadoop, Hive/HQL etc.)</li>
+<li><strong>Relational</strong> (Sql: MsSQL, MySQL, ORACLE etc.)</li>
+<li><strong>NoSql</strong>: Document and others (MongoDB, Riak, tuple spaces etc.)</li>
+<li><strong>Unstructured</strong> data accessed via custom APIs(parse CSV files etc.)</li>
+<li><strong>Non-homogeneous</strong> data: all/some of the aforementioned sources may be needed in the same system</li>
+</ul>
+<p>The data access is facilitated via the <a href="Access/IDataStore.cs"><code>Azos.Data.Access.IDataStore</code></a> interface which is just a
+marker interface for the application chassis.</p>
+<p>Every system may select a combination of the following strategies that fit the particular case the best:</p>
+<ul>
+<li>Calling 3rd party services (e.g. via REST/SOAP/RPC) - pulling data via some API calls</li>
+<li>Read/Write some data via app-specific APIs (classes/props/methods) - similar to ORM</li>
+<li>Work with data via CRUD facade (i.e. DataStore.Insert(new Doc{......}) - similar to the <a href="https://en.wikipedia.org/wiki/Active_record_pattern"><strong>Active Record</strong></a> pattern/Entity framework</li>
+<li>Work with higher-level facade to any of the aforementioned ways</li>
+</ul>
+<h2 id="building-blocks-docs-schema-fielddefs">Building Blocks: Docs, Schema, FieldDefs</h2>
+<p>Any POCO (Plain CLR) class instance may be used to access data, as data stores are just interfaces,
+for example:  <code>MyCar car = MyApp.Data.GetCarsByDriver(&quot;Frank-123&quot;);</code>, as the function in the preceding
+example may return a domain object <code>MyCar</code>.</p>
+<p>Azos.Data namespace provides a very convenient base for business logic/domain models
+building blocks, which are also typically used in a CRUD scenarios:</p>
+<ul>
+<li><code>Azos.Data.Schema</code> - defines &quot;schema&quot; - a field structure with constraints and other metadata for <strong>data documents</strong></li>
+<li><code>Azos.Data.Doc</code>/<code>DynamicDoc</code>/<code>TypedDoc</code> - represent data vectors aka &quot;<strong>data documents</strong>&quot;. Documents are either flat (a la traditional RDBMS rows), or contain hierarchical data (like Json objects)</li>
+<li><code>Azos.Data.RowsetBase</code>/<code>Rowset</code>/<code>Table</code> - a set of data documents of the same schema (like a RDBMS table)</li>
+<li><code>Azos.Data.Access.Query</code> - a <a href="https://en.wikipedia.org/wiki/Command_pattern">command object</a> sent into the provider for execution</li>
+</ul>
+<h3 id="schema">Schema</h3>
+<p><a href="Schema.cs">Schema</a> defines the structure of data documents, it consists of FieldDef instances that define attributes
+for every field. Fields may be of complex types (e.g. a field of type <code>List&lt;PatientDataDoc&gt;</code>). So Schema basically shapes the data
+contained in Docs. See <a href="metadata.html">Schema Metadata</a> for more details.</p>
+<h3 id="data-documents">Data Documents</h3>
+<p>A data document &quot;<a href="Doc.cs">Doc</a>&quot; is a string of data, it consists of fields where every field is defined by a FieldDef from Schema.
+Think of data doc as a classes directly or indirectly inheriting from <code>Doc</code>, where properties decorated with <code>[Field]</code> attribute get read/written
+from/to actual data store.
+<strong>Documents can nest</strong> - they <strong>can contain fields of complex types</strong>, thus forming hierarchical data structures. <em>You have to keep in mind though,
+that for the best backend portability it is better to use linear row-like &quot;data strings&quot; (on-level rows with primitive types only).</em></p>
+<p>A <code>Schema</code> is a property of a <code>Doc</code>. <code>FieldDef</code> is a property of a field within a document. There are two types of data documents:</p>
+<ul>
+<li>Dynamic Data Documents</li>
+<li>Typed Data Documents</li>
+</ul>
+<p>Dynamic documents are instances of <a href="DynamicDoc.cs"><code>DynamicDoc</code></a> class, they keep data internally in an <code>object[]</code>.
+Typed rows are instances of sub-types of a <a href="TypedDoc.cs"><code>TypedDoc</code></a>. The fields of typed doc must be explicitly
+declared in code and tagged with a <a href="Attributes.cs"><code>[Field]</code></a> attribute which defines field's detailed FieldDef.</p>
+<p>This design is very flexible, as both doc types stem from <code>Doc</code> abstract class, which has the following key
+features:</p>
+<pre><code class="lang-CSharp">    Doc person = new DynamicDoc(Schema.GetForTypedDoc(PersonDoc));
+    person[0] = 123;
+    Aver.AreEqual(123, person[&quot;id&quot;]);
+    person[&quot;name&quot;] = &quot;Frank Drebin&quot;;
+    var error = person.Validate(); //ensure metadata invariants
+    Aver.IsNull(error);
+    ...
+    var person2 = new PersonDoc();//no schema needs to be passed as it is a typed doc
+    person.CopyTo(person2);//copies all fields
+    ...
+</code></pre>
+<p>Docs may override <code>Validate()</code> method to <strong>ensure cross-field constraint adherence</strong>.
+See <a href="metadata.html">Schema Metadata</a></p>
+<h3 id="rowset">Rowset</h3>
+<p>Rowsets are collections of data documents of the same schema - this is used for accessing table-like data consisting of rows - hence the name.
+There are two types both inheriting from <a href="RowsetBase.cs"><code>RowsetBase</code></a>:</p>
+<ul>
+<li><a href="Rowset.cs">Rowset</a></li>
+<li><a href="Table.cs">Table</a></li>
+</ul>
+<p>The difference between the two is the presence of the primary key in the <code>Azos.Data.Table</code>
+which allows for <strong>efficient in-memory merges/findKey()</strong> calls, consequently table is not for dynamic sorting.
+It is a pk-organized list of rows of the same schema. The findKey() is done via a binary search.</p>
+<p><a href="Rowset.cs"><code>Azos.Data.Rowset</code></a> does not have this limit - it <strong>allows to sort the data</strong>, however the
+findkey() calls do linear search (which is slow akin to LINQ's <code>Where(predicate)</code>).</p>
+<p>An interesting feature of rowsets is their ability to mix Dynamic and Typed documents instances in one list
+as long as their schemas are the same (referentiality).</p>
+<p>Rowsets can track changes, if <code>RowsetBase.LogChanges=true</code>, then RowChange enumerable can be obtained
+via <code>Rowset.Changes</code> property. The concept is somewhat similar to .NET's DataSet, BUT there is a
+<strong>key difference</strong> in the approach: Azos Data Access is for accessing <strong>any data, not only relational</strong>.</p>
+<h3 id="virtual-query">Virtual Query</h3>
+<p>Queries are <a href="https://en.wikipedia.org/wiki/Command_pattern">command objects</a> that group parameters under some name.
+The queries are polymorphic (virtual), that is: the backend provider (DataStore-implementor) is responsible for
+<em>query-to-actual-handler</em> resolution. Basically this treats data store requests as NAMED service calls (commands), thus decoupling
+the logical query (as a data need request) from the actual implementation.</p>
+<p>There are two types of <a href="Access/CRUDQueryHandler.cs">query handlers</a>:</p>
+<ul>
+<li>Script QueryHandler</li>
+<li>Code Query Handler</li>
+</ul>
+<p>This design allows for an infinite flexibility, as script queries <strong>may be written in backend-specific
+scripting technology</strong>, i.e.:</p>
+<pre><code class="lang-CSharp">  var qry = Query(&quot;GetUserById&quot;){ new Query.Param(&quot;UID&quot;, 1234)};
+    
+  //for My SQL, will get resolved into    
+   SELECT T1.* FROM TBL_USER T1 WHERE T1.ID = ?UID
+    
+  //For MongoDB
+    #pragma
+    modify=user
+    
+    {&quot;_id&quot;: &quot;$$UID&quot;}}
+    
+  //For Erlang MFA(module function arg)
+    nfx_test:exec_qry(get_user_bid, Uid:long())
+</code></pre>
+<p>For script queries the backend implementation choses the embedded script based on technology-specific suffix, this way
+a script assembly may multi-target different data backends (such as Oracle or MySql) from the same application.</p>
+<p>In cases where a certain backend can not execute a given request, a handler can be implemented in CLR code. For example,
+suppose we use <code>CONNECT BY</code> in ORACLE version of the script, then we need to support a less-capable data store which
+does not support <code>CONNECT BY</code> directly, but can emulate the same result with multiple DB calls. A code-based handler
+can execute those calls into the data store returning the same logical result as ORACLE's <code>CONNECT BY</code> would.</p>
+<p>See <a href="/src/testing/Azos.Tests.Integration/CRUD">Azos.Tests.Integration</a> for more use-cases.</p>
+<h3 id="crud-data-store">CRUD Data Store</h3>
+<p><a href="Access/Intfs.cs"><code>Azos.Data.Access.Intfs.cs</code></a> contains the definitions of <code>ICRUDOPerations</code> which stipulate the contract
+for working in a CRUD style:</p>
+<pre><code class="lang-CSharp">  /// &lt;summary&gt;
+  /// Describes an entity that performs single (not in transaction/batch)CRUD operations
+  /// &lt;/summary&gt;
+  public interface ICRUDOperations
+  {
+    /// &lt;summary&gt;
+    /// Returns true when backend supports true asynchronous operations, such as the ones that do
+    /// not create extra threads/empty tasks
+    /// &lt;/summary&gt;
+    bool SupportsTrueAsynchrony { get;}
+
+    Schema        GetSchema(Query query);
+    Task&lt;Schema&gt;  GetSchemaAsync(Query query);
+
+    List&lt;RowsetBase&gt;        Load(params Query[] queries);
+    Task&lt;List&lt;RowsetBase&gt;&gt;  LoadAsync(params Query[] queries);
+
+    RowsetBase        LoadOneRowset(Query query);
+    Task&lt;RowsetBase&gt;  LoadOneRowsetAsync(Query query);
+
+    Doc        LoadOneRow(Query query);
+    Task&lt;Doc&gt;  LoadOneRowAsync(Query query);
+
+    Cursor        OpenCursor(Query query);
+    Task&lt;Cursor&gt;  OpenCursorAsync(Query query);
+
+    int        Save(params RowsetBase[] rowsets);
+    Task&lt;int&gt;  SaveAsync(params RowsetBase[] rowsets);
+
+    int        ExecuteWithoutFetch(params Query[] queries);
+    Task&lt;int&gt;  ExecuteWithoutFetchAsync(params Query[] queries);
+
+    int        Insert(Doc row);
+    Task&lt;int&gt;  InsertAsync(Doc row);
+
+    int        Upsert(Doc row);
+    Task&lt;int&gt;  UpsertAsync(Doc row);
+
+    int        Update(Doc row, IDataStoreKey key = null);
+    Task&lt;int&gt;  UpdateAsync(Doc row, IDataStoreKey key = null);
+
+    int        Delete(Doc row, IDataStoreKey key = null);
+    Task&lt;int&gt;  DeleteAsync(Doc row, IDataStoreKey key = null);
+  }
+</code></pre>
+<p>This way of working with data backend is similar to the <a href="https://en.wikipedia.org/wiki/Active_record_pattern"><strong>&quot;Active Record&quot;</strong></a> pattern.</p>
+<p>An example use case:</p>
+<pre><code class="lang-CSharp">  var person = new PersonDoc
+  {
+    ID = MyApp.Data.IDGenerator.GetNext(typeof(PersonDoc)),
+    Name = &quot;Jon Lord&quot;,
+    IsCertified = true
+  };
+  
+  App.PersonStore().Upsert(person);
+</code></pre>
+<p>Or a typical case of use with Azos.Wave.Mvc Web Api:</p>
+<pre><code class="lang-CSharp">  [Action(&quot;person&quot;, 1, &quot;match{ methods='GET' accept-json='true'}&quot;]
+  public object GetPerson(string id)
+  {
+    return App.PersonStore().LoadOneRow(Queries.PersonById(id));
+  }
+      
+  [Action(&quot;person&quot;, 1, &quot;match{ methods='POST' accept-json='true'}&quot;]
+  public object PostPerson(Person person)
+  {
+    var err = person.Validate();
+    if (err!=null)
+        return new {OK=false, Err = err.Message};//Or throw HttpStatus code exception
+            
+    App.PersonStore().Upsert(person);
+    return new {OK=true};
+  }
+</code></pre>
+<p>As illustrated above, the Azos.Wave framework performs <strong>data document injection into the Mvc actions</strong> - a form
+of automatic data binding, which is very convenient in CRUD applications.</p>
+<p>See also:</p>
+<ul>
+<li><a href="metadata.html">Data Schema</a></li>
+<li><a href="domains.html">Data Validation with Domains</a></li>
+<li><a href="modeling.html">Data Modeling</a></li>
+</ul>
+<p>Back to <a href="/src/documentation-index.md">Documentation Index</a></p>
+</article>
+          </div>
+          
+          <div class="hidden-sm col-md-2" role="complementary">
+            <div class="sideaffix">
+              <div class="contribution">
+                <ul class="nav">
+                  <li>
+                    <a href="https://github.com/azist/azos/blob/master/src/Azos/Data/readme.md/#L1" class="contribution-link">Improve this Doc</a>
+                  </li>
+                </ul>
+              </div>
+              <nav class="bs-docs-sidebar hidden-print hidden-xs hidden-sm affix" id="affix">
+              <!-- <p><a class="back-to-top" href="#top">Back to top</a><p> -->
+              </nav>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <footer>
+        <div class="grad-bottom"></div>
+        <div class="footer">
+          <div class="container">
+            <span class="pull-right">
+              <a href="#top">Back to top</a>
+            </span>
+            
+            <span>Generated by <strong>DocFX</strong></span>
+          </div>
+        </div>
+      </footer>
+    </div>
+    
+    <script type="text/javascript" src="../../../styles/docfx.vendor.js"></script>
+    <script type="text/javascript" src="../../../styles/docfx.js"></script>
+    <script type="text/javascript" src="../../../styles/main.js"></script>
+  </body>
+</html>

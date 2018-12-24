@@ -1,0 +1,134 @@
+﻿<!DOCTYPE html>
+<!--[if IE]><![endif]-->
+<html>
+  
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+    <title>Distributed Cluster Process Execution Model </title>
+    <meta name="viewport" content="width=device-width">
+    <meta name="title" content="Distributed Cluster Process Execution Model ">
+    <meta name="generator" content="docfx 2.40.6.0">
+    
+    <link rel="shortcut icon" href="../../../favicon.ico">
+    <link rel="stylesheet" href="../../../styles/docfx.vendor.css">
+    <link rel="stylesheet" href="../../../styles/docfx.css">
+    <link rel="stylesheet" href="../../../styles/main.css">
+    <meta property="docfx:navrel" content="../../../toc">
+    <meta property="docfx:tocrel" content="../../../toc">
+    
+    
+    
+  </head>
+  <body data-spy="scroll" data-target="#affix" data-offset="120">
+    <div id="wrapper">
+      <header>
+        
+        <nav id="autocollapse" class="navbar navbar-inverse ng-scope" role="navigation">
+          <div class="container">
+            <div class="navbar-header">
+              <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#navbar">
+                <span class="sr-only">Toggle navigation</span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+              </button>
+              
+              <a class="navbar-brand" href="../../../index.html">
+                <img id="logo" class="svg" src="../../../logo.svg" alt="">
+              </a>
+            </div>
+            <div class="collapse navbar-collapse" id="navbar">
+              <form class="navbar-form navbar-right" role="search" id="search">
+                <div class="form-group">
+                  <input type="text" class="form-control" id="search-query" placeholder="Search" autocomplete="off">
+                </div>
+              </form>
+                
+                <ul class="nav level1 navbar-nav">
+                      <li>
+                          <a href="../../documentation-index.html" name="" title="Azos">Azos</a>
+                      </li>
+                      <li>
+                          <a href="../../../out/api/Azos.html" name="" title="API Documentation">API Documentation</a>
+                      </li>
+                </ul>    </div>
+          </div>
+        </nav>
+        
+        <div class="subnav navbar navbar-default">
+          <div class="container hide-when-search" id="breadcrumb">
+            <ul class="breadcrumb">
+              <li></li>
+            </ul>
+          </div>
+        </div>
+      </header>
+      <div role="main" class="container body-content hide-when-search">
+        <div class="article row grid">
+          <div class="col-md-10">
+            <article class="content wrap" id="_content" data-uid="">
+<h1 id="distributed-cluster-process-execution-model">Distributed Cluster Process Execution Model</h1>
+
+<p>Azos Sky provides mechanisms for <strong>scheduling</strong>, <strong>dispatching</strong> and <strong>control of executable primitives</strong> on different levels of abstraction.
+These mechanisms are not required to write distributed apps, however they provide a broad range of functionality required by the majority of
+application use-cases.</p>
+<p>For example:</p>
+<ul>
+<li>enqueue event notifications/messages in event-based systems</li>
+<li>send customer emails notifications correlating on topic</li>
+<li>financial books auditing - scan transaction shards vs books for discrepancies - generate adjustements</li>
+<li>executing MapReduce or in-memory summary jobs</li>
+<li>sending social messages/chat</li>
+</ul>
+<p>all of these tasks can be easily coded with the building blocks described below.</p>
+<p>Sky provides the following mechanisms each of which is described in the linked detail pages:</p>
+<ul>
+<li><p><a href="Todo.cs"><strong>Todo</strong></a> - an execution primitive akin to <a href="todos.html">&quot;cloud function&quot;</a>, a part of a larger task, provides partitioning of a larger task, parallelization and load balancing between cluster nodes. <a href="todos.html">More details on Todos...</a></p>
+</li>
+<li><p><a href="Process.cs"><strong>Process</strong></a> - a global context of the larger task execution, establishes context for multiple instances of asynchronous Todos, captures the final result of multiple <a href="Todo.cs"><code>Todo</code></a>s; reacts to <a href="Signal.cs"><code>Signals</code></a><a href="processes.html">More details on processes...</a></p>
+</li>
+<li><p><strong>HostSet</strong> - a named set of hosts participating in some business activity. For example, hostset of <a href="todos.html">Todo Queue</a> processors</p>
+</li>
+<li><p><strong>Dynamic Host</strong> - a prototype of a host which can get spawned by the Azos Sky automatically (i.e. HostSet load balancer) or manually on a pluggable IaaS provider - an instance of CloudSystem</p>
+</li>
+</ul>
+</article>
+          </div>
+          
+          <div class="hidden-sm col-md-2" role="complementary">
+            <div class="sideaffix">
+              <div class="contribution">
+                <ul class="nav">
+                  <li>
+                    <a href="https://github.com/azist/azos/blob/master/src/Azos.Sky/Workers/readme.md/#L1" class="contribution-link">Improve this Doc</a>
+                  </li>
+                </ul>
+              </div>
+              <nav class="bs-docs-sidebar hidden-print hidden-xs hidden-sm affix" id="affix">
+              <!-- <p><a class="back-to-top" href="#top">Back to top</a><p> -->
+              </nav>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <footer>
+        <div class="grad-bottom"></div>
+        <div class="footer">
+          <div class="container">
+            <span class="pull-right">
+              <a href="#top">Back to top</a>
+            </span>
+            
+            <span>Generated by <strong>DocFX</strong></span>
+          </div>
+        </div>
+      </footer>
+    </div>
+    
+    <script type="text/javascript" src="../../../styles/docfx.vendor.js"></script>
+    <script type="text/javascript" src="../../../styles/docfx.js"></script>
+    <script type="text/javascript" src="../../../styles/main.js"></script>
+  </body>
+</html>

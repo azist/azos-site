@@ -1,0 +1,310 @@
+﻿<!DOCTYPE html>
+<!--[if IE]><![endif]-->
+<html>
+  
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+    <title>Software Engineering Myths and Truisms </title>
+    <meta name="viewport" content="width=device-width">
+    <meta name="title" content="Software Engineering Myths and Truisms ">
+    <meta name="generator" content="docfx 2.40.6.0">
+    
+    <link rel="shortcut icon" href="../favicon.ico">
+    <link rel="stylesheet" href="../styles/docfx.vendor.css">
+    <link rel="stylesheet" href="../styles/docfx.css">
+    <link rel="stylesheet" href="../styles/main.css">
+    <meta property="docfx:navrel" content="../toc">
+    <meta property="docfx:tocrel" content="../toc">
+    
+    
+    
+  </head>
+  <body data-spy="scroll" data-target="#affix" data-offset="120">
+    <div id="wrapper">
+      <header>
+        
+        <nav id="autocollapse" class="navbar navbar-inverse ng-scope" role="navigation">
+          <div class="container">
+            <div class="navbar-header">
+              <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#navbar">
+                <span class="sr-only">Toggle navigation</span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+              </button>
+              
+              <a class="navbar-brand" href="../index.html">
+                <img id="logo" class="svg" src="../logo.svg" alt="">
+              </a>
+            </div>
+            <div class="collapse navbar-collapse" id="navbar">
+              <form class="navbar-form navbar-right" role="search" id="search">
+                <div class="form-group">
+                  <input type="text" class="form-control" id="search-query" placeholder="Search" autocomplete="off">
+                </div>
+              </form>
+                
+                <ul class="nav level1 navbar-nav">
+                      <li>
+                          <a href="documentation-index.html" name="" title="Azos">Azos</a>
+                      </li>
+                      <li>
+                          <a href="../out/api/Azos.html" name="" title="API Documentation">API Documentation</a>
+                      </li>
+                </ul>    </div>
+          </div>
+        </nav>
+        
+        <div class="subnav navbar navbar-default">
+          <div class="container hide-when-search" id="breadcrumb">
+            <ul class="breadcrumb">
+              <li></li>
+            </ul>
+          </div>
+        </div>
+      </header>
+      <div role="main" class="container body-content hide-when-search">
+        <div class="article row grid">
+          <div class="col-md-10">
+            <article class="content wrap" id="_content" data-uid="">
+<h1 id="software-engineering-myths-and-truisms">Software Engineering Myths and Truisms</h1>
+
+<p>Back to</p>
+<ul>
+<li><a href="/src/documentation-index.md">Documentation Index</a></li>
+<li><a href="/src/philosophy.md">Azos Design Philosophy</a></li>
+</ul>
+<p>Author: Dmitriy R Khmaladze</p>
+<p><strong>TLDR</strong></p>
+<blockquote>
+<p>No pattern/principle or process may substitute for engineering experience and talent. Experience comes with time
+and practice and can not be acquired just by reading books. Purism is good in academia and when applied judiciously
+when it makes sense, and one needs to have an experience to judge when it does or does not make sense. Too many framework/library
+choices for developers really impede performance and lead to creation of over-engineered systems.</p>
+</blockquote>
+<p>Every competent software engineer knows common design principles such as SOLID, DRY, IoC, DI etc.
+This article is not to criticize those principles which are absolutely necessary to write &quot;sane&quot; code.
+We are going to try to look at the problem of modern software development from a bit of a different angle.</p>
+<p>In the past 15 years of my professional career I had a privilege working on a number of systems having really large code bases, mostly
+business-oriented data-driven software with large backing data stores and various service layers. Those projects
+had 10s and sometimes 100+ engineers supporting them in a corporate landscape. What strikes me, is that in those
+companies, which are not connected to each other, and even use different technologies (.Net, Java, Node.js) <strong>developers redo almost
+the same things over and over</strong> - whilst using the most advanced contemporary frameworks (Spring, Castle, Service Stack et.al.)
+In spite of using large frameworks, each project that I have seen also uses a plethora of 3rd party solutions like
+(without particular categorization): NLog, Log4Net, Hibernate, Akka, Kafka, Rabbit MQ, Autofac, and many others in <strong>the same
+solution</strong>. I would say that probably over 70% of the code is repetitive (violation of DRY) with much boilerplate to adapt to those different
+sub-frameworks.</p>
+<p>The saddest thing - most technology people think it is <del><strong>good and &quot;eclectic&quot; to have so &quot;many tools&quot;</strong></del>.
+If only could the companies (business) comprehend the technology enough to straighten those &quot;technologists&quot; out.</p>
+<p>Simply put, there is a <strong>lot of puristic BS in modern frameworks</strong> that try to fit all possible combinations at the expense of verbose code and
+overall complexity. Lets take <a href="https://en.wikipedia.org/wiki/Dependency_injection">DI <em>(dependency injection)</em></a> as an example. DI is powerful
+and great, yet how many times have you questioned the need for new object allocation? It turns out, that while writing business-oriented
+applications manual object allocation and class proliferation in general is not a good thing. Classes make sense for business state and logic,
+but not for senseless stubs with 1 method (and no state). See <a href="/src/Azos/Apps/Injection">Azos Dependency Injection</a> for details.</p>
+<p>Why does this happen?</p>
+<ul>
+<li>Too many choices - you can do the same thing in 1000s of different ways, even in the same solutions</li>
+<li>Purism - taken literally, e.g. single responsibility principle - lets create classes with no state and only 1 method, make them non-static so that they are &quot;testable&quot; and mockable implementing (useless) interfaces</li>
+<li>Complex framework yet too of a low level for business problems (not a full solution) - leaving many choices to developers</li>
+<li>Politics + People don't care</li>
+</ul>
+<p>Here is a short list of SOLID principles misuse which is prevalent almost everywhere:</p>
+<ul>
+<li>Single Responsibility Principle: create 1 class with 1 method and no state + another accompanying class with no methods to hold state</li>
+<li>Interface segregation: create interface for every such class described above. The interface does not extract any common behavior and is really senseless (1:1=intf:class)</li>
+<li>Dependency Inversion - in spite of aforementioned classes effectively being static code, create &quot;testable&quot; code - implement mocks for even POCO data holder classes</li>
+</ul>
+<p>What is the real problem with the abuse outlined above? Well, it is really a <strong>senseless abuse which creates 100s of useless classes</strong>,
+interfaces, and unit <strong>tests which do not really test anything of value</strong>.</p>
+<p>The <strong>infinite level of abstraction</strong> in business apps is a good example of purism. For example, <strong>in the .Net framework itself abstraction is capped</strong> - a <code>String</code>
+class is used in many APIs, not an <code>IString</code> or <code>ICharSequence</code> and puristically this is a bad design, but it is a good
+design from the practicality standpoint.</p>
+<p><strong>One</strong> of Real Examples:</p>
+<blockquote>
+<p>Around 2012 I consulted a large company having 50K+ employees. In one system I have seen around 100 Mvc controllers each post method containing similar code which had around
+5 accompanying classes for every data model type <em>(model binder, validator, storage adapter, UI presenter)</em>. Without getting in too
+much detail of that particular case, I could conclude that whoever architected that solution was an incorrigible purist with little
+knowledge of real-world software development, then <strong>10s of developers followed the pattern for a few years</strong>
+creating around <strong>3000 classes</strong> + unit tests. The solution had around 650 assemblies and took around 30 minutes
+to open and &quot;build all&quot; in Visual Studio!!! What strikes me, is that the largest part of that code was &quot;infrastructure&quot;/system - it
+did not even deal with their business domain. At the end of the day I was able to extract common business behavior into 2 classes
+and get rid of &quot;custom infrastructure rule engine&quot; completely. The code base shrunk to 1 assembly (instead of 650) and &lt;200 classes,
+having classes represent 100+ different business rules as stipulated by the state governments.</p>
+</blockquote>
+<h2 id="problems-with-general-purpose-object-allocation-in-business-apps">Problems with General-Purpose Object Allocation in Business Apps</h2>
+<p><strong>TLDR</strong></p>
+<blockquote>
+<p>Business apps are nothing more but manipulators of model data usually supplied by Http post, validated, transformed
+and stored into a DB store (which usually uses auto-generated SQL/CRUD). The complexity of classes/inheritance and object graph
+allocation is mostly needed in system code (such as Azos framework itself), not a business code (such as XYZ system built on Azos)
+as most business code is procedural/linear logic operating on business-models. Most entities come into business code already pre-allocated by
+the system (controllers, service modules, entity mapping, model bindings)</p>
+</blockquote>
+<p>Composition Root/Chassis:</p>
+<blockquote>
+<p>Object should be composed together as close as possible to the application's entry point.
+A Composition Root is a (preferably) unique location in an application where modules are composed together.</p>
+<p style="text-align: right"><a href="http://blog.ploeh.dk/2011/07/28/CompositionRoot/">Composition Root Pattern by Mark Seemann</a></p>
+</blockquote>
+<p>DI is good, in general, what is not good is that in the hands of purists and careless developers general purpose DI availability creates
+a temptation to add extra classes and allocate too many objects for tasks which <strong>do not need object instances in principle</strong>.
+Of course those classes may be created without DI - just by calling <code>new</code>, but this is a tight coupling code smell, therefore once
+DI-anything becomes &quot;free&quot;, developers are tempted to start abusing single responsibility principle by adding myriads of classes with
+little purpose. An example of this abuse (taken from real apps): <em>MyModelX, MyModelXValidator, MyModelXEmailMustBeUnqueValidationRule, MyModelXSomethingElseValidationRule,
+MyModelXControllerBinder, MyModelXStore, MyModelXDefaults</em> etc. now, many times developers also create a 1:1 interface for every class so they &quot;can be mocked&quot;.
+This is really a crazy impractical design instigated by DI-anything ubiquity and purism.</p>
+<p>Lets analyze what objects are needed at runtime and who and how they get allocated.
+The following lists objects that need to get allocated in a typical app:</p>
+<ul>
+<li>App component graph - allocated by the system at start, app components are app-scoped objects like logger, service stack etc. (system code)</li>
+<li>Logging - allocated at app start (system code)</li>
+<li>Instrumentation - allocated at app start (system code)</li>
+<li>Data Store/Access Repository -  allocated at app start (system code), data store may need to cache precomputed values</li>
+<li>Security Manager - allocated at app start (system code)</li>
+<li>Domain-specific business logic - modules (strategies/logic) allocated at app start (system code)</li>
+<li>Web call POST/PUT payload -&gt; Domain model - allocated by MVC controller/model binder (system code)</li>
+<li>Data Access model - allocated by datastore/access layer (system code)</li>
+<li>Custom data structures/Nodes - <strong>allocated by user code</strong></li>
+<li>Domain model object - allocated by datastore/object mapper (system code mostly) <strong>and user code</strong></li>
+<li>Deserialization: stream-&gt; object: - allocated by serializer (system code)</li>
+</ul>
+<p>As we can see in the list above, <strong>most of the object allocations are done by the system(framework)</strong> code. Business logic
+developers should concentrate on implementing:</p>
+<ul>
+<li>Domain models - objects that reflect business (e.g. User, Account, Doctor etc...)</li>
+<li>Domain logic - objects that contain business rules. The practice has shown that the majority of business logic is linear and procedural, hence it makes sense to put those functions in &quot;logic modules&quot; that get loaded in the app context and used as a &quot;service&quot;</li>
+</ul>
+<p><strong>Business logic is mostly procedural in its core</strong>, and it takes &quot;business models&quot;, validates them and transacts
+the db/store/queue. A business-oriented data driven application is all about good UI front end and matching backend that
+takes data (usually via web API facade), binds it to server models, validates, transforms and stores those models either
+directly into the store or via some kind of queue/CQRS/event sourcing etc.</p>
+<p>It became apparent that <strong>frivolous object allocations should NOT be encouraged</strong> altogether in business logic.</p>
+<p>While writing software for an end-user problem, If you are spending too much time doing system architecture (inventing non-domain classes) on the
+server side - then there is something wrong with your framework which you base your architecture on.
+<strong>Business app must ONLY contain business domain objects.</strong></p>
+<h2 id="a-few-software-engineering-truisms">A few Software Engineering Truisms</h2>
+<p>Most &quot;well known&quot; facts and principles such as: <strong>SOLID</strong>, data <strong>normalization</strong>, IoC etc. are rooted in puristic world view and
+actually pose a great threat to the project when applied carelessly, without proper engineering experience. Unfortunately <strong>there are
+no rules that can replace the true engineering experience and sheer talent</strong>. A good solutions is <strong>always a balance in the mix of good
+software engineering techniques</strong> (some mentioned above) <strong>and practicality</strong>, where one must know what this or that would take in
+real life to write and maintain (including test/retest).</p>
+<p>Does this mean that all design patterns and well-known software engineering principles are bad? Absolutely not! As a matter of fact,
+those practices hold true for 99% of cases, however you must be careful and <strong>not blindly follow the rules</strong> as your case
+may not be the best case for those rules.</p>
+<p>A few examples of software &quot;truisms&quot; which are usually taken as incontrovertible facts of life/nature.
+These are just a few tacit assumptions that one must be careful with:</p>
+<h4 id="in-oop-everything-should-be-a-class-with-a-single-responsibility">In OOP everything should be a class with a &quot;Single&quot; responsibility</h4>
+<p>...so people create classes like <code>Adder&lt;int,int&gt;</code> etc.</p>
+<p><strong>In Reality</strong>:
+Too many people take this literally and start creating senseless classes, classes without state. What appeals to many that those classes
+are easy to test, however the purpose of the class is senseless to begin with so there is no benefit in testing of senseless code.
+The most trivial requirement turns into creation of 10s (if not hundreds) of useless types each containing one method and no state.
+In reality the creation of new object instances should be minimized/regulated by architecture.</p>
+<h4 id="state-is-bad-everything-is-to-be-state-less">State is bad, everything is to be State-Less</h4>
+<p>...so everything can scale as there is no binding between worker/machine/state. Make everything stateless!</p>
+<p><strong>In Reality</strong>:
+Humans use computers for their ability to record state/data. You would not be able to find a single stateless system in the world -
+it would be of no use. In reality the state is stowed into a central database (a bottle-neck!!!). When you work in &quot;stateless&quot;
+environment you are really keeping the state somewhere else, for example Google Docs keeps state in the cloud, but there is state. There is always
+state and sometimes it is a <strong>GOOD and EXPECTED design to store the state in-memory</strong> on the particular server and use the benefit of
+<a href="https://en.wikipedia.org/wiki/Locality_of_reference"><strong>locality of reference</strong></a>. The question of state-full or state-less
+is really a question of how the state is abstracted and where the state is kept. There is always state in one or another way.</p>
+<h4 id="the-more-unit-tests-the-better">The more unit tests-the better</h4>
+<p>...so your solution is safer</p>
+<p><strong>In Reality</strong>:
+Unit tests are software - they may contain bugs. A passing unit test is of no value if it does not assert good business cases
+including edge cases. Unit testing which relies on too much mocking is actually testing that mocking as well. So again this is about balance - the system
+has to be designed in such a way that testing can be done with the <strong>LEAST amount of mocking</strong> required - this does not mean that classes may not have dependencies,
+to the opposite - the dependencies are to be tested first, then composed for more complex &quot;integration&quot; tests. For example, the best practical
+<strong>test of database access code</strong> is to NOT use mocking, but have proper <strong>local database deployment scripts and let the tests run on empty local DB</strong>.
+It is better to have maintainable amount of tests which <strong>exhaustively test the purpose of every function</strong>. Auto-generated
+tests in this regard are absolutely of no practical use. Example: create a unit test for <code>StrToInt(string)</code> function - good test coverage should test for:
+negative values, values with hex/bin prefixes (if supported), null and empty input, overflown values, values with spaces, especially in between the minus sign etc.
+Now consider this <code>EvaluateExpression(string, val[])</code> function: <code>&quot;x&lt;5 || x!=-23&quot;.EvaluateExpression(x: 3)</code> - how many unit tests will it take to cover it? - probably more than 50.
+Another important concern of modern unit testing deals with asynchronous processing and multi-threading. Many supposedly thread-safe functions may fail while being called in parallel.</p>
+<h4 id="premature-optimization-is-bad">Premature Optimization is Bad</h4>
+<p>...is the root of all evil, as developer spend time and build more complex code for problems that do not exist in reality or are
+not as critical as originally anticipated. This rule is <strong>almost</strong> always true, but not always.
+A good example of premature optimization is someone thinking about processor false cache lane sharing while writing a web-service
+code that queries employee roster via SQL - those are just incomparable problems on a time scale as the later deals with micro optimizing
+tight code in the nano-second range. However, there are many cases when things need to be carefully optimized up front.</p>
+<p><strong>In Reality</strong>:
+one has to be very attentive to details and <strong>think ahead of possible use-cases</strong>, especially while developing libraries. Consider these
+two versions of code:</p>
+<pre><code class="lang-CSharp">  if (rowset.RowCount==0) sendNoDataNotification(...);
+  -vs -
+  if (rowset.IsEmpty) sendNoDataNotification(...);
+</code></pre>
+<p>The first line would probably have to fetch 100(s) rows (as an example) in callers memory from the server to get the RowCount, whereas the
+second line would not fetch anything or 1 row at most because <code>IsEmpty</code> was purposely created to avoid this unneeded fetch all - it is
+an optimization property, which logically does exactly the same thing as <code>RowCount!=0</code> - the difference is in the how it does it.</p>
+<h4 id="black-boxencapsulation">Black Box/Encapsulation</h4>
+<p>...is exercised so we should not care about how things are done. Liskov substitution principle says: you should be able to swap B for C if both
+do the same thing implementing the same interface.</p>
+<p><strong>In Reality</strong>:
+good engineers always use Reflector/ILSpy (or ref source) to see how different classes render their services. For example,
+<code>ConcurrentDictionary</code> is built for multi-threaded operations, but did you know that <code>Dictionary</code> is actually much more performant
+in cases when its reference is swapped atomically in place and mutations are infrequent (so the code is thread safe)?
+The point is: you should always see what is happening inside (especially when writing tight code) and although two classes implement the same interface their side effects may
+lie in the performance spectrum.</p>
+<h4 id="always-use-exceptions">Always use Exceptions</h4>
+<p>...in programming languages with native exception support (C++, Java, C# et.al.) one must not rely on custom function return codes and always
+use exceptions as a sole mechanism of error signaling and detection.</p>
+<p><strong>In Reality:</strong>
+exceptions work <strong>5x-10x slower</strong> than functions returning flags - this is very important for writing <strong>tight code</strong> such as the code in
+serializers, in-memory data structures (such as nested tries/grids) and other structures with large number of processing elements.
+Many times one need to &quot;bail out&quot; from the inner processing loop (e.g. a data cube cell contains null) - and this is a semi-exception as
+it is somewhat anticipated. By returning a boolean flag which collapses nested call you can achieve orders of magnitude increase in
+performance. Another example is data validation of models <code>model.Validate(): Exception</code>. When you need to validate models at multi-thousand
+rate a second per worker (thread/task) it is better to return exception as an instance, this way you can rethrow them or handle with a simple
+if statement which will be MUCH faster.</p>
+<hr>
+<p>External resources:</p>
+<ul>
+<li><a href="https://stackoverflow.com/questions/802050/what-is-opinionated-software">Opinionated Framework (SO)</a></li>
+<li><a href="https://microservices.io/patterns/microservice-chassis.html">Pattern: Microservice Chassis</a></li>
+<li><a href="https://en.wikipedia.org/wiki/Service_locator_pattern">Service Location (Wikipedia)</a></li>
+<li><a href="https://en.wikipedia.org/wiki/Dependency_injection">Dependency Injection (Wikipedia)</a></li>
+<li><a href="https://martinfowler.com/articles/injection.html">IoC with Service Location / Dependency Injection by Martin Fowler</a></li>
+</ul>
+<p>Back to <a href="/src/documentation-index.md">Documentation Index</a></p>
+</article>
+          </div>
+          
+          <div class="hidden-sm col-md-2" role="complementary">
+            <div class="sideaffix">
+              <div class="contribution">
+                <ul class="nav">
+                  <li>
+                    <a href="https://github.com/azist/azos/blob/master/src/truisms.md/#L1" class="contribution-link">Improve this Doc</a>
+                  </li>
+                </ul>
+              </div>
+              <nav class="bs-docs-sidebar hidden-print hidden-xs hidden-sm affix" id="affix">
+              <!-- <p><a class="back-to-top" href="#top">Back to top</a><p> -->
+              </nav>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <footer>
+        <div class="grad-bottom"></div>
+        <div class="footer">
+          <div class="container">
+            <span class="pull-right">
+              <a href="#top">Back to top</a>
+            </span>
+            
+            <span>Generated by <strong>DocFX</strong></span>
+          </div>
+        </div>
+      </footer>
+    </div>
+    
+    <script type="text/javascript" src="../styles/docfx.vendor.js"></script>
+    <script type="text/javascript" src="../styles/docfx.js"></script>
+    <script type="text/javascript" src="../styles/main.js"></script>
+  </body>
+</html>
