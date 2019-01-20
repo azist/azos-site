@@ -5,12 +5,12 @@
   <head>
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
-    <title>Azos Logging </title>
+    <title>Azos Logging | A to Z Sky OS </title>
     <meta name="viewport" content="width=device-width">
-    <meta name="title" content="Azos Logging ">
+    <meta name="title" content="Azos Logging | A to Z Sky OS ">
     <meta name="generator" content="docfx 2.40.6.0">
     
-    <link rel="shortcut icon" href="../../../favicon.ico">
+    <link rel="shortcut icon" href="../../../doc/img/favicon.ico">
     <link rel="stylesheet" href="../../../styles/docfx.vendor.css">
     <link rel="stylesheet" href="../../../styles/docfx.css">
     <link rel="stylesheet" href="../../../styles/main.css">
@@ -35,7 +35,7 @@
               </button>
               
               <a class="navbar-brand" href="../../../index.html">
-                <img id="logo" class="svg" src="../../../logo.svg" alt="">
+                <img id="logo" class="svg" src="../../../doc/img/azos-toolbar-emblem.96.png" alt="">
               </a>
             </div>
             <div class="collapse navbar-collapse" id="navbar">
@@ -47,22 +47,17 @@
                 
                 <ul class="nav level1 navbar-nav">
                       <li>
-                          <a href="../../documentation-index.html" name="" title="Azos">Azos</a>
+                          <a href="../../../doc/articles/index.html" name="" title="Articles">Articles</a>
                       </li>
                       <li>
-                          <a href="../../../out/api/Azos.html" name="" title="API Documentation">API Documentation</a>
+                          <a href="../../../out/api/Azos.html" name="" title="API Docs">API Docs</a>
+                      </li>
+                      <li>
+                          <a href="https://github.com/azist/azos" name="" title="GitHub">GitHub</a>
                       </li>
                 </ul>    </div>
           </div>
         </nav>
-        
-        <div class="subnav navbar navbar-default">
-          <div class="container hide-when-search" id="breadcrumb">
-            <ul class="breadcrumb">
-              <li></li>
-            </ul>
-          </div>
-        </div>
       </header>
       <div role="main" class="container body-content hide-when-search">
         <div class="article row grid">
@@ -72,19 +67,19 @@
 
 <p>Back to <a href="/src/documentation-index.md">Documentation Index</a></p>
 <p>Logging is necessary in any kind of application, therefore it is the first service booted by Application Chassis.
-Logging is represented by <a href="/src/Azos/Log/Intfs.cs"><code>ILog</code></a> contract and mounted on <code>IApplication.Log</code> property.</p>
+Logging is represented by <a href="/src/Azos/Log/Intfs.cs"><code>ILog</code></a> contract having chassis reference <code>IApplication.Log</code>.</p>
 <p>The Azos.Log has the following traits:</p>
 <ul>
 <li>Designed for use in local and <strong>distributed systems</strong> (e.g. Sky)
 <ul>
 <li>Built for high-performance async-first processing</li>
-<li>Built-in per-sink SLA which drives in-built EMA filter-guarded circuit breaker</li>
+<li>Built-in <strong>per-sink SLA</strong> which drives in-built EMA filter-guarded circuit breaker</li>
 <li>Every message captures a <strong>host name</strong>, which is set to a local machine name or global host name in a Sky cluster</li>
 <li>Exceptions are not necessarily serializable, therefore they can not be marshaled across cluster boundaries as-is.
 <a href="/src/Azos/Exceptions.cs#L284"><code>WrappedException</code></a> type takes care of this by capturing custom exception information and making it suitable for marshaling and long term storage (i.e. archiving)</li>
 </ul>
 </li>
-<li>Supports message archiving
+<li>Supports <strong>log message archiving</strong>:
 <ul>
 <li>Built-in BSON serialization suitable for binary logs and long-term storage (e.g. as is in MongoDb)</li>
 <li>The system extracts <code>ArchiveDimensions</code> which may be used for OLAP warehousing</li>
@@ -97,9 +92,95 @@ Logging is represented by <a href="/src/Azos/Log/Intfs.cs"><code>ILog</code></a>
 </ul>
 </li>
 </ul>
+<h2 id="log-message">Log Message</h2>
+<p>Azos logging is async-first, therefore it is built around a <a href="/src/Azos/Log/Message.cs"><code>Message</code></a> sealed class. <code>Message</code> is BSON-serializable for long-term storage.</p>
+<p>Messages header properties have the following cardinality:</p>
+<ol>
+<li>Channel: string - messages are processed by channels, e.g. &quot;Security&quot;, &quot;Social&quot; etc..</li>
+<li>Topic - within a channel messages are split by topics. Topics are to be taken from non-localizable constants, e.g. &quot;RPC&quot;, &quot;financial&quot; etc.. Topics represents logical subs-systems/areas.</li>
+<li>From: string - designates where message emitted from within the topic, aka. 'ComponentName'</li>
+<li>Source: int - tracepoint/line# within component</li>
+</ol>
+<p>The following describes <code>Message</code> properties:</p>
+<table>
+<tr><th>Property</th><th>Description</th></tr>
+<tr>
+  <td>Guid <br><sup>Guid</sup></td>
+  <td> Provides global unique identifier for this log message instance</td>
+</tr>
+<tr>
+  <td>Type <br><sup>MessageType</sup></td>
+  <td> Gets/Sets message type/severity, such as: Info/Warning/Error etc...</td>
+</tr>
+<tr>
+  <td>Source <br><sup>int</sup></td>
+  <td> Gets/Sets message source line number/tracepoint#, this is used in conjunction with From. 
+    Tracepoints are logical block/line numbers which are iused if code changes often (e.g. Source: 100, 200, 300)</td>
+</tr>
+<tr>
+  <td>UTCTimeStamp <br><sup>DateTime in UTC</sup></td>
+  <td> Gets/Sets UTC timestamp when message was generated. The stamp is always in UTC. The log display screens, may offset the date
+per display location - this is a UI concern. All log messages are archived/warehoused in UTC only </td>
+</tr>
+<tr>
+  <td>Host <br><sup>string</sup></td>
+  <td> 
+     Gets/Sets host name that generated the message. On a local Azos application this defaults to Message.DefaultHostName static,
+which may not be set in which case local computer name is used. In Sky applications this defaults to SKy distributed cluster host name e.g. 
+'/world/us/east/nyc/web/lnxmedium001'
+  </td>
+</tr>
+<tr>
+  <td>Topic <br><sup>string</sup></td>
+  <td> 
+   Gets/Sets a message topic/relation - the name of software concern within a big app, e.g. "Database", "Security" ...
+   The `From` message property provides more detailed location under the specified `Topic`
+ </td>
+</tr>
+<tr>
+  <td>From <br><sup>string</sup></td>
+  <td> Gets/Sets logical component ID, such as: class name, method name, process instance, that generated the message.
+    This field is used in the scope of Topic </td>
+</tr>
+<tr>
+  <td>Text <br><sup>string</sup></td>
+  <td> 
+     Gets/Sets an unstructured message text, the emitting component name must be in From field, not in text.
+     Note about logging errors: Use caught exception.ToMessageWithType() method, then attach the caught exception as Exception property for
+structured logging
+  </td>
+</tr>
+<tr>
+  <td>Parameters <br><sup>string</sup></td>
+  <td> 
+   Gets/Sets a structured parameter bag, this may be used for additional debug info like source file name, additional context etc.
+   The bag content is typically in JSON format
+  </td>
+</tr>
+<tr>
+  <td>Exception <br><sup>Exception</sup></td>
+  <td> 
+   Gets/Sets exception associated with log message.
+   Set this property EVEN IF the name/text of exception is already included in Text as log sinks may elect to dump the whole stack trace
+  </td>
+</tr>
+<tr>
+  <td>ArchiveDimensions <br><sup>string</sup></td>
+  <td> 
+   Gets/Sets archive dimension content for later retrieval of messages by key, i.e. a user ID may be used.
+   In most cases JSON or Laconic content is stored, the format depends on a concrete system. See `ArchiveDimensionMapper`
+  </td>
+</tr>
+<tr>
+  <td>Cahnnel <br><sup>string</sup></td>
+  <td> 
+   Gets/Sets logical partition name for messages. This property is usually used in Archive for splitting destinations
+  </td>
+</tr>
+</table>
 <h2 id="component-logging">Component Logging</h2>
-<p>While developing application components (such as business logic modules), <code>ApplicationComponent.WriteLog(...)</code> should be used
-instead of direct <code>App.Log</code> access. The method checks <code>ComponentEffectiveLogLevel</code> property and set proper <code>Topic</code> and <code>From</code> prefixes
+<p>When developing application components (such as business logic modules), <code>ApplicationComponent.WriteLog(...)</code> should be used
+instead of direct <code>App.Log.Write(msg)</code>. The method checks <code>ComponentEffectiveLogLevel</code> property and sets proper <code>Topic</code> and <code>From</code> prefixes
 per component:</p>
 <pre><code class="lang-CSharp">private void logicBody(DomainObject data)
 {
@@ -124,6 +205,82 @@ per component:</p>
 </code></pre>
 <p>In the example above, if the containing app component has its <code>ComponentLogLevel</code> set above <code>Trace</code> then tracing messages are
 NOT going to get logged.</p>
+<h2 id="terminal-error-logging">Terminal Error Logging</h2>
+<p>When developing CLI and multi-threaded applications it is a good practice to <strong>handle all of the error types</strong> to ensure that leaking an unexpected
+<strong>exception does not crash your service daemon</strong>. Log the catch-all errors and emit an instrumentation event - this is a better pattern than crashing a
+process due to an unhandled error thrown on one of the 100s of cluster hosts.</p>
+<h4 id="the-general-rule-is">The general rule is:</h4>
+<p><strong>all terminal points in the app must use catch-all handlers</strong> and gracefully terminate the app if necessary or keep running.
+A <strong>terminal application point</strong> is the one where an exception has no place to propagate further - program entry points and thread bodies.
+Unhandled exceptions terminate the hosting OS process if exceptions are not handled at the terminal points.</p>
+<p>The following pattern should be used for handling errors at CLI program terminal points:</p>
+<pre><code class="lang-CSharp">class Program
+{
+  public static int Run(string[] args)
+  {
+    using(var app = new AzosApplication(args))
+    {
+      try
+      {
+          return run(app);
+      }
+      catch(Exception error)
+      {
+          App.Log.Write(new Message{
+            Type = MessageType.CatastrophicError,
+            Topic = nameof(Program),
+            From = nameof(Run),
+            Text = &quot;Leaked: {0}&quot;.Args(error.ToMessageWithType()),
+            Error = error
+          });
+         return -1;//environment error exit code
+      }
+    }
+  }
+
+  private int run(IApplication app)
+  {
+    if (app.CommandArgs[&quot;help&quot;].Exists)
+     .....
+  }
+}
+</code></pre>
+<p>The following pattern should be used for handling errors at <code>ApplicationComponent</code> terminal points (such as a thread body):</p>
+<pre><code class="lang-CSharp">private void threadBody()
+{
+  while(Running)
+  {
+    try
+    {
+      doWorkCore();//not expected to crash
+    }
+    catch(Exception error)
+    {
+      UnexpectedErrorEvent.Emit(App, error);//instrumentation
+      WriteLog(MessageType.Error, nameof(threadBody), &quot;Leaked unexpected: {0}&quot;.Args(error.ToMessageWithType()), error);
+      //we may want to wait here a bit to debounce the error
+    }
+  }
+}
+</code></pre>
+<p>The <code>ApplicationComponent.WriteLog()</code> above will pre-pend the <code>From</code> field with the component class name so it looks something like
+(just as an example): <code>FTPImportDaemon.threadBody</code>,
+this way just by looking at <code>From</code> you can immediately know where the error came from. Another important aspect in the pattern above is the
+passthrpough of exception instance into the log message. This is needed so that relevant sinks, such as <code>DebugSink</code> could have access to the
+exception instance for structured logging. <strong>Notice the use of <code>ToMessageWithType()</code></strong> extension which shows exception type and text. In Azos,
+application <strong>logic should throw custom-typed exceptions</strong> - this <strong>significantly simplifies debugging and support</strong> and obviates the need in many
+cases to look at lengthy stack traces as exception type names are descriptive enough.</p>
+<p>Contrast:</p>
+<pre><code class="lang-CSharp"> [InvalidOperationException] Index is out of bounds at &quot;c:\project\MyProject\src\MyCore\....
+.... 70 lines of stack trace ...
+   
+  -  vs  -
+
+ [MemberRateCalculationError] Could not calculate billing rate for member `R-324348`. 
+  DoCalculate() leaked: [InvalidOperationException]Index is out of bounds at... 
+... 70 lines of stack trace ...
+</code></pre>
+<p>in the second case, just by looking at exception type and text you can pretty much pinpoint the error location.</p>
 <h2 id="basic-configuration">Basic Configuration</h2>
 <p>Logging is typically configured by the app chassis at its boot. The following is a typical simple configuration with one catch-all sink and one debug sink that logs errors only:</p>
 <pre><code class="lang-CSharp">app
@@ -190,13 +347,6 @@ inner daemon. The following sinks are supplied right out of the box:</p>
           
           <div class="hidden-sm col-md-2" role="complementary">
             <div class="sideaffix">
-              <div class="contribution">
-                <ul class="nav">
-                  <li>
-                    <a href="https://github.com/azist/azos/blob/master/src/Azos/Log/readme.md/#L1" class="contribution-link">Improve this Doc</a>
-                  </li>
-                </ul>
-              </div>
               <nav class="bs-docs-sidebar hidden-print hidden-xs hidden-sm affix" id="affix">
               <!-- <p><a class="back-to-top" href="#top">Back to top</a><p> -->
               </nav>
@@ -212,8 +362,8 @@ inner daemon. The following sinks are supplied right out of the box:</p>
             <span class="pull-right">
               <a href="#top">Back to top</a>
             </span>
+            Copyright (c)2018 - 2019 Azist Group
             
-            <span>Generated by <strong>DocFX</strong></span>
           </div>
         </div>
       </footer>
